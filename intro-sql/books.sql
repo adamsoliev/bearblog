@@ -1,3 +1,6 @@
+-- ////////////////////////////////////////////////
+-- CREATE TABLE AND COPY DATA INTO IT
+-- ////////////////////////////////////////////////
 CREATE TABLE books (
   book_id            bigint PRIMARY KEY,
   title              text        NOT NULL,
@@ -103,3 +106,11 @@ copy books (
 )
 from '/tmp/books_clean.csv'
 with (format csv, header true, DELIMITER ','); 
+
+
+-- ////////////////////////////////////////////////
+-- EXAMPLES
+-- ////////////////////////////////////////////////
+select *
+from books
+where average_rating > 4;
