@@ -22,12 +22,12 @@ SET datestyle = 'ISO, MDY';
 -- dataset: https://www.kaggle.com/datasets/jealousleopard/goodreadsbooks
 -- download it and export it to ~/path/to/books.csv
 -- multipass transfer ~/path/to/books.csv instance-name:/tmp/
-copy books (
+COPY books (
     book_id, title, authors, average_rating, isbn, isbn13, language_code,
     num_pages, ratings_count, text_reviews_count, publication_date, publisher
 )
-from '/tmp/books.csv'
-with (format csv, header true, DELIMITER ','); 
+FROM '/tmp/books.csv'
+WITH (FORMAT CSV, HEADER TRUE, DELIMITER ','); 
 
 /*
 -- 'extra data after last expected column' issue
@@ -100,12 +100,12 @@ with (format csv, header true, DELIMITER ',');
     PY
 */
 
-copy books (
+COPY books (
     book_id, title, authors, average_rating, isbn, isbn13, language_code,
     num_pages, ratings_count, text_reviews_count, publication_date, publisher
 )
-from '/tmp/books_clean.csv'
-with (format csv, header true, DELIMITER ','); 
+FROM '/tmp/books_clean.csv'
+WITH (FORMAT CSV, HEADER TRUE, DELIMITER ','); 
 
 
 -- ////////////////////////////////////////////////
@@ -113,11 +113,11 @@ with (format csv, header true, DELIMITER ',');
 -- ////////////////////////////////////////////////
 
 -- example #1
-select 
+SELECT 
     *
-from 
+FROM 
     books
-where 
+WHERE 
     average_rating > 4;
 
 
