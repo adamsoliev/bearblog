@@ -113,10 +113,12 @@ with (format csv, header true, DELIMITER ',');
 -- ////////////////////////////////////////////////
 
 -- example #1
-select *
-from books
-where average_rating > 4;
-
+select 
+    *
+from 
+    books
+where 
+    average_rating > 4;
 
 
 -- example #2
@@ -126,10 +128,32 @@ SELECT
     publisher,
     average_rating,
     ratings_count
-FROM books
+FROM 
+    books
 WHERE 
     language_code = 'eng' 
     AND publication_date > '2010-01-01'
     AND average_rating > 4.2
 ORDER BY 
     ratings_count DESC;
+
+
+-- example #3
+SELECT
+    publisher,
+    COUNT(*) AS hit_titles,
+    AVG(average_rating) AS avg_rating,
+    SUM(ratings_count) AS total_ratings
+FROM 
+    books
+WHERE
+    (language_code = 'eng' OR language_code='en-US')
+    AND publication_date > '2000-01-01'
+    AND average_rating > 4.0
+GROUP BY 
+    publisher
+HAVING 
+    COUNT(*) >= 40
+ORDER BY
+    avg_rating DESC, 
+    total_ratings DESC;
