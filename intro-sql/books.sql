@@ -111,6 +111,25 @@ with (format csv, header true, DELIMITER ',');
 -- ////////////////////////////////////////////////
 -- EXAMPLES
 -- ////////////////////////////////////////////////
+
+-- example #1
 select *
 from books
 where average_rating > 4;
+
+
+
+-- example #2
+SELECT 
+    title,
+    authors,
+    publisher,
+    average_rating,
+    ratings_count
+FROM books
+WHERE 
+    language_code = 'eng' 
+    AND publication_date > '2010-01-01'
+    AND average_rating > 4.2
+ORDER BY 
+    ratings_count DESC;
