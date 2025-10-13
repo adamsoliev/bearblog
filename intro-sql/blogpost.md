@@ -82,7 +82,7 @@ WHERE condition(s)
 ```
 Conceptually, `FROM` first forms the Cartesian product (all possible row combinations) of the tables listed. `WHERE` narrows that down by applying one or more conditions (combined with `AND`, `OR`, and `NOT`). Finally, `SELECT` trims the output to just the columns you want.   
 
-> *Notice the order of evaluation: FROM → WHERE → SELECT*.
+> Notice the order of evaluation: FROM → WHERE → SELECT.
 
 ### example #2
 This query is a bit more involved – it has more filtering conditions (`WHERE`), orders the results by popularity (`ORDER BY`) and returns specific columns.  
@@ -102,13 +102,13 @@ WHERE
 ORDER BY 
     ratings_count DESC;
 ```
-Conceptually, the `FROM → WHERE → SELECT` flow isn't different from the example #1. The only difference is at the end, the database sorts rows based on `ratings_count` (`ORDER BY`).
+Conceptually, the flow remains the same – the database pulls all rows (`FROM`), filters them (`WHERE`), and then returns selected columns (`SELECT`). The only new step is at the end, where it sorts the final rows by `ratings_count` (`ORDER BY`).
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/second_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
 </div>
 
-> *Notice the order of evaluation: FROM → WHERE → SELECT → ORDER BY*.
+> Notice the order of evaluation: FROM → WHERE → SELECT → ORDER BY.
 
 ### example #3
 Now let's ask a more interesting question, 'which publishers consistently deliver highly-rated, popular titles?'.
