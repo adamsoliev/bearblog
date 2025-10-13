@@ -11,7 +11,7 @@
 ---
 
 # What and why
-This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance. 
+This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance.
 
 This blogpost was written primary for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
 
@@ -19,7 +19,7 @@ This blogpost was written primary for myself – to clarify what I understand ab
 
 The relational model is built on a simple but powerful idea borrowed directly from mathematics: a relation is just a set of tuples.
 
-Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation $R$ on these sets is any set of $n$-tuples where the first component comes from $S1$, the second from $S2$, and so on. In database terms, a relation is a **table**, a tuple is a **row**, and the sets $S1$, $S2$, $\dots$, $Sn$ define the permissible values for each column. 
+Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation $R$ on these sets is any set of $n$-tuples where the first component comes from $S1$, the second from $S2$, and so on. In database terms, a relation is a **table**, a tuple is a **row**, and the sets $S1$, $S2$, $\dots$, $Sn$ define the permissible values for each column.
 
 For example, imagine you have three sets:
 
@@ -35,7 +35,10 @@ A possible relation $R$ on these three sets could be:
 | 75 | "C" | 2022-07-11 |
 | 32 | "E" | 2019-03-27 |
 
-This precise definition gives the relational model a solid theoretical foundation, ensuring clear, unambiguous concepts and avoiding ad-hoc exceptions. As a result, communication among users, developers, and researchers is far more consistent than in earlier, less formal database approaches. 
+[primary key and foreigh key explanations]()
+redundant data is used to link records in different tables
+
+This precise definition gives the relational model a solid theoretical foundation, ensuring clear, unambiguous concepts and avoiding ad-hoc exceptions. As a result, communication among users, developers, and researchers is far more consistent than in earlier, less formal database approaches.
 
 In practice, the relational model deliberately stops short of access method and storage details, focusing on the logical structure of data. This separation has several consequences:
 
@@ -43,11 +46,11 @@ In practice, the relational model deliberately stops short of access method and 
 * DBMS builders can innovate on access methods and storage to improve performance without breaking user programs.
 
 # Relational algebra and calculus
-Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL, that we know today, is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”. 
+Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL, that we know today, is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
 
 # Basic queries walkthrough
 
-SQL covers several kinds of tasks, often grouped into four main categories: 
+SQL covers several kinds of tasks, often grouped into four main categories:
 - DQL (data query language) - Extracts data from tables. (e.g., `SELECT`)
 - DDL (data definition language) - Defines and modifies database structures. (e.g., `CREATE`, `ALTER`, `DROP`)
 - DCL (data control language) - Manages user access and permissions. (e.g., `GRANT`, `REVOKE`)
@@ -76,30 +79,30 @@ The image below presents visually what role each clause plays in producing the r
 
 A more general template looks like:
 ```sql
-SELECT column(s)	
+SELECT column(s)
 FROM table(s)
 WHERE condition(s)
 ```
-Conceptually, `FROM` first forms the Cartesian product (all possible row combinations) of the tables listed. `WHERE` narrows that down by applying one or more conditions (combined with `AND`, `OR`, and `NOT`). Finally, `SELECT` trims the output to just the columns you want.   
+Conceptually, `FROM` first forms the Cartesian product (all possible row combinations) of the tables listed. `WHERE` narrows that down by applying one or more conditions (combined with `AND`, `OR`, and `NOT`). Finally, `SELECT` trims the output to just the columns you want.
 
 > Notice the order of evaluation: FROM → WHERE → SELECT.
 
 ### example #2
-This query is a bit more involved – it has more filtering conditions (`WHERE`), orders the results by popularity (`ORDER BY`) and returns specific columns.  
+This query is a bit more involved – it has more filtering conditions (`WHERE`), orders the results by popularity (`ORDER BY`) and returns specific columns.
 
 ```sql
-SELECT 
+SELECT
     title,
     authors,
     publisher,
     average_rating,
     ratings_count
 FROM books
-WHERE 
-    language_code = 'eng' 
+WHERE
+    language_code = 'eng'
     AND publication_date > '2010-01-01'
     AND average_rating > 4.2
-ORDER BY 
+ORDER BY
     ratings_count DESC;
 ```
 Conceptually, the flow remains the same – the database pulls all rows (`FROM`), filters them (`WHERE`), and then returns selected columns (`SELECT`). The only new step is at the end, where it sorts the final rows by `ratings_count` (`ORDER BY`).
@@ -119,18 +122,18 @@ SELECT
     COUNT(*) AS hit_titles,
     AVG(average_rating) AS avg_rating,
     SUM(ratings_count) AS total_ratings
-FROM 
+FROM
     books
 WHERE
     (language_code = 'eng' OR language_code='en-US')
     AND publication_date > '2000-01-01'
     AND average_rating > 4.0
-GROUP BY 
+GROUP BY
     publisher
-HAVING 
+HAVING
     COUNT(*) >= 40
 ORDER BY
-    avg_rating DESC, 
+    avg_rating DESC,
     total_ratings DESC;
 ```
 
@@ -163,4 +166,3 @@ After pulling all rows and filtering them, the database groups all remaining row
 
 # References
 [^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.
-
