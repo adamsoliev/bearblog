@@ -143,7 +143,55 @@ After pulling all rows and filtering them, the database groups all remaining row
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
 </div>
 
-> *Notice the order of evaluation: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY*.
+> Notice the order of evaluation: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY.
+
+### example #4
+select exprs
+rank(partition by order by)
+count(DISTINCT ..)
+
+choice of counting all members in the group or counting only
+the distinct values for a column across all members of the group
+
+### example #5
+select literals
+group by multiple columns
+join
+where with range condition
+
+### example #6
+join
+where with membership condition
+
+[old join syntax vs SQL92]()
+
+[null pitfalls]()
+```
+null is the absence of a value;
+
+When working with null, you should remember:
+* An expression can be null, but it can never equal null.
+* Two nulls are never equal to each other.
+
+To test whether an expression is null, you need to use the is null operator
+To test whether value is in range, you need to test that column to null as well
+In aggregate functions like `COUNT`, using `*` means null is also counted
+```
+
+[explain the following template at the end of basic section]()
+```sql
+select 	[DISTINCT] [aggregate(column)] <columns|literals|exprs|funcs>
+from 		<table>
+		permanent, derived, temporary, virtual tables
+join on 	<criteria>
+where 	<condition(s)>
+		condition - expression(s) combined with operator(s)
+			equality, range, membership, matching
+		expression - number|column|string|func|subquery|exprs
+		operator - comparison, arithmetic, logical
+group by 	<column(s)> [GROUPING SETS|ROLLUP|CUBE] [HAVING] <criteria>
+order by 	<column(s)|position> <direction>
+```
 
 ---
 
