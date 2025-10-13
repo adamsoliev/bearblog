@@ -111,8 +111,7 @@ Conceptually, the flow remains the same – the database pulls all rows (`FROM`)
 > Notice the order of evaluation: FROM → WHERE → SELECT → ORDER BY.
 
 ### example #3
-Now let's ask a more interesting question, 'which publishers consistently deliver highly-rated, popular titles?'.
-Specifically: among English (US included) books published after 2000 with an average rating above 4.0, identify publishers that have at least forty such books, and list them ordered by total ratings and  average rating.
+This query introduces aggregate functions (`COUNT`, `AVG`, `SUM`), which compute a single result from many rows. Used with `GROUP BY`, they summarize each group, and `HAVING` filters those groups (recall `WHERE`, as seen earlier, filters rows before grouping).
 
 ```sql
 SELECT
@@ -135,7 +134,7 @@ ORDER BY
     total_ratings DESC;
 ```
 
-This might seem intimidating at first but approached piece by piece, it should be approachable, so let's get down to it. First two steps are similar to the previous queries, we grab table data (`FROM` clause) and filter out rows that don't satisfy the `WHERE` clause condition. Then we do `GROUP BY` operation - meaning, we partition the table data based on values of `publisher` column. For example, all rows with `publisher` value `HarperCollins` constitute a single group. Once this is done, `HAVING` filters out groups that don't meet the specified criteria. Once we have the right groups, `SELECT` clause runs - adds already existing `publisher` column to the result and then computes aggregates (`COUNT`, `AVG`, `SUM`) per group into corresponding new columns. Finally, `ORDER BY` sorts the remaining rows by the specified order. 
+After pulling all rows and filtering them, the database groups all remaining rows by `publisher`, creating one group per publisher (`GROUP BY`). It discards groups with fewer than 40 rows (`HAVING`), calculates aggregate values (`COUNT`, `AVG`, `SUM`), and sorts the summarized results.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
@@ -148,6 +147,8 @@ This might seem intimidating at first but approached piece by piece, it should b
 # Advanced queries walkthrough
 [gemini biz questions suggestions](https://gemini.google.com/app/8c08a5cfd6b1587a)
 [chatgpt biz question suggestions](https://chatgpt.com/c/68ec2f12-62f8-832a-8697-b9694460ca9f)
+
+[EU soccer dataset](https://www.kaggle.com/datasets/hugomathien/soccer)
 
 ### pick a dataset and explore it as much as possible
 ### go over medium/hard examples of ‘ace data science interview‘ book
