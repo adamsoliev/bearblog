@@ -13,7 +13,7 @@
 # What and why
 This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance. 
 
-I hope that all readers find something of value herein.
+This blogpost was written primary for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
 
 # Relational model
 
@@ -134,7 +134,7 @@ ORDER BY
     total_ratings DESC;
 ```
 
-After pulling all rows and filtering them, the database groups all remaining rows by `publisher`, creating one group per publisher (`GROUP BY`). It discards groups with fewer than 40 rows (`HAVING`), calculates aggregate values (`COUNT`, `AVG`, `SUM`), and sorts the summarized results.
+After pulling all rows and filtering them, the database groups all remaining rows by `publisher`, creating one group per publisher (`GROUP BY`). It discards groups with fewer than 40 rows (`HAVING COUNT(*) >= 40`, where `*` counts every row in the group), calculates aggregate values (`COUNT`, `AVG`, `SUM`) and sorts the summarized results.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
