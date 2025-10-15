@@ -146,12 +146,20 @@ After pulling all rows and filtering them, the database groups all remaining row
 > Notice the order of evaluation: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY.
 
 ### example #4
-select exprs
-rank(partition by order by)
-count(DISTINCT ..)
+This query is an intesting one because it introduces nested grouping (first level is done by `GROUP BY` and the second, inner one is done by `PARTITION BY` clause). Unlike `GROUP BY` that collapses a group of rows into one, `PARTITION BY` only segments or "windows" rows that share the same `language_code` to perform a calculation. The query also introduces `DISTINCT` in a aggregate function, which in this case means counting only unique values for `authors` column across all members of a group. Lastly, the query also uses multiple columns in `GROUP BY` clause, which means rows are grouped per each unique combination of `language_code` and `publisher`.
 
-choice of counting all members in the group or counting only
-the distinct values for a column across all members of the group
+```sql
+SELECT language_code,
+       publisher,
+       AVG(average_rating) AS avg_rating,
+       RANK() OVER (PARTITION BY language_code
+                    ORDER BY AVG(average_rating) DESC) AS publisher_rank,
+       COUNT(DISTINCT authors) AS distinct_authors
+FROM books
+WHERE publisher IS NOT NULL AND language_code IS NOT NULL
+GROUP BY language_code, publisher
+ORDER BY language_code, publisher_rank;
+```
 
 ### example #5
 select literals
@@ -207,10 +215,6 @@ order by 	<column(s)|position> <direction>
 # Optimizations
 
 # Conclusion
-
-<!--
-![image](https://github.com/adamsoliev/Ganymede/blob/master/references/arty_a7.jpg?raw=true)
--->
 
 # References
 [^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.

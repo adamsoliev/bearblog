@@ -157,3 +157,23 @@ HAVING
 ORDER BY
     avg_rating DESC, 
     total_ratings DESC;
+
+
+-- example #4
+SELECT language_code,
+       publisher,
+       AVG(average_rating) AS avg_rating,
+       RANK() OVER (PARTITION BY language_code
+                    ORDER BY AVG(average_rating) DESC) AS publisher_rank,
+       COUNT(DISTINCT authors) AS distinct_authors
+FROM books
+WHERE publisher IS NOT NULL AND language_code IS NOT NULL
+GROUP BY language_code, publisher
+ORDER BY language_code, publisher_rank;
+
+select * from books limit 20;
+
+
+explain ANALYSE 
+select count(*)
+from books;
