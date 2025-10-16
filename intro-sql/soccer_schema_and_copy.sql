@@ -1,3 +1,7 @@
+-- dataset: https://www.kaggle.com/datasets/davidcariboo/player-scores
+-- download it and move every csv file into /tmp/ directory
+
+
 ---------------------------------------------
 -- tools
 ---------------------------------------------
@@ -27,7 +31,7 @@ SELECT inet_server_addr();
 ---------------------------------------------
 drop table if exists appearances;
 CREATE TABLE appearances (
-    appearance_id TEXT,
+    appearance_id TEXT PRIMARY KEY,
     game_id INTEGER,
     player_id INTEGER,
     player_club_id INTEGER,
@@ -69,7 +73,8 @@ create table club_games (
     opponent_position INTEGER,
     opponent_manager_name TEXT,
     hosting TEXT,
-    is_win INTEGER
+    is_win INTEGER,
+    PRIMARY KEY (game_id, club_id)
 );
 
 
@@ -90,7 +95,7 @@ drop table if exists clubs;
 
 
 create table clubs (
-    club_id INTEGER,
+    club_id INTEGER PRIMARY KEY,
     club_code TEXT,
     club_name TEXT,
     domestic_competition_id TEXT,
@@ -125,7 +130,7 @@ select * from clubs order by stadium_seats DESC NULLS LAST limit 5;
 drop table if exists competitions;
 
 create table competitions (
-    competition_id TEXT,
+    competition_id TEXT PRIMARY KEY,
     competition_code TEXT,
     name TEXT,
     sub_type TEXT,
@@ -155,7 +160,7 @@ drop table if exists game_events;
 
 
 create table game_events (
-    game_event_id TEXT,
+    game_event_id TEXT PRIMARY KEY,
     date DATE,
     game_id INTEGER,
     minute INTEGER,
@@ -184,7 +189,7 @@ drop table if exists game_lineups;
 
 
 create table game_lineups (
-    game_lineups_id TEXT,
+    game_lineups_id TEXT PRIMARY KEY,
     date DATE,
     game_id INTEGER,
     player_id INTEGER,
@@ -213,7 +218,7 @@ drop table if exists games;
 
 
 create table games (
-    game_id INTEGER,
+    game_id INTEGER PRIMARY KEY,
     competition_id TEXT,
     season INTEGER,
     round TEXT,
@@ -259,7 +264,8 @@ create table player_valuations (
     date DATE,
     market_value_in_eur NUMERIC,
     current_club_id INTEGER,
-    player_club_domestic_competition_id TEXT
+    player_club_domestic_competition_id TEXT,
+    PRIMARY KEY (player_id, date)
 );
 
 
@@ -279,7 +285,7 @@ drop table if exists players;
 
 
 create table players (
-    player_id INTEGER,
+    player_id INTEGER PRIMARY KEY,
     first_name TEXT,
     last_name TEXT,
     name TEXT,
@@ -330,7 +336,8 @@ create table transfers (
     to_club_name TEXT,
     transfer_fee TEXT,
     market_value_in_eur TEXT,
-    player_name TEXT
+    player_name TEXT,
+    PRIMARY KEY (player_id, transfer_date, from_club_id, to_club_id)
 );
 
 
@@ -341,6 +348,80 @@ WITH (FORMAT CSV, HEADER TRUE, DELIMITER ',');
 
 -- sanity check
 select * from transfers limit 5;
+
+
+---------------------------------------------
+-- constraints
+---------------------------------------------
+ALTER TABLE clubs
+    ADD CONSTRAINT clubs_domestic_competition_fk
+    FOREIGN KEY (domestic_competition_id) REFERENCES competitions (competition_id);
+
+ALTER TABLE games
+    ADD CONSTRAINT games_competition_fk
+    FOREIGN KEY (competition_id) REFERENCES competitions (competition_id),
+    ADD CONSTRAINT games_home_club_fk
+    FOREIGN KEY (home_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT games_away_club_fk
+    FOREIGN KEY (away_club_id) REFERENCES clubs (club_id);
+
+ALTER TABLE club_games
+    ADD CONSTRAINT club_games_game_fk
+    FOREIGN KEY (game_id) REFERENCES games (game_id),
+    ADD CONSTRAINT club_games_club_fk
+    FOREIGN KEY (club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT club_games_opponent_fk
+    FOREIGN KEY (opponent_id) REFERENCES clubs (club_id);
+
+ALTER TABLE appearances
+    ADD CONSTRAINT appearances_game_fk
+    FOREIGN KEY (game_id) REFERENCES games (game_id),
+    ADD CONSTRAINT appearances_player_fk
+    FOREIGN KEY (player_id) REFERENCES players (player_id),
+    ADD CONSTRAINT appearances_player_club_fk
+    FOREIGN KEY (player_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT appearances_player_current_club_fk
+    FOREIGN KEY (player_current_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT appearances_competition_fk
+    FOREIGN KEY (competition_id) REFERENCES competitions (competition_id);
+
+ALTER TABLE game_events
+    ADD CONSTRAINT game_events_game_fk
+    FOREIGN KEY (game_id) REFERENCES games (game_id),
+    ADD CONSTRAINT game_events_club_fk
+    FOREIGN KEY (club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT game_events_player_fk
+    FOREIGN KEY (player_id) REFERENCES players (player_id);
+
+ALTER TABLE game_lineups
+    ADD CONSTRAINT game_lineups_game_fk
+    FOREIGN KEY (game_id) REFERENCES games (game_id),
+    ADD CONSTRAINT game_lineups_player_fk
+    FOREIGN KEY (player_id) REFERENCES players (player_id),
+    ADD CONSTRAINT game_lineups_club_fk
+    FOREIGN KEY (club_id) REFERENCES clubs (club_id);
+
+ALTER TABLE player_valuations
+    ADD CONSTRAINT player_valuations_player_fk
+    FOREIGN KEY (player_id) REFERENCES players (player_id),
+    ADD CONSTRAINT player_valuations_current_club_fk
+    FOREIGN KEY (current_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT player_valuations_competition_fk
+    FOREIGN KEY (player_club_domestic_competition_id) REFERENCES competitions (competition_id);
+
+ALTER TABLE players
+    ADD CONSTRAINT players_current_club_fk
+    FOREIGN KEY (current_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT players_current_competition_fk
+    FOREIGN KEY (current_club_domestic_competition_id) REFERENCES competitions (competition_id);
+
+ALTER TABLE transfers
+    ADD CONSTRAINT transfers_player_fk
+    FOREIGN KEY (player_id) REFERENCES players (player_id),
+    ADD CONSTRAINT transfers_from_club_fk
+    FOREIGN KEY (from_club_id) REFERENCES clubs (club_id),
+    ADD CONSTRAINT transfers_to_club_fk
+    FOREIGN KEY (to_club_id) REFERENCES clubs (club_id);
 
 
 ---------------------------------------------

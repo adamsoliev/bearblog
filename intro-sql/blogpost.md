@@ -35,8 +35,11 @@ A possible relation $R$ on these three sets could be:
 | 75 | "C" | 2022-07-11 |
 | 32 | "E" | 2019-03-27 |
 
-[primary key and foreigh key explanations]()
-redundant data is used to link records in different tables
+Note $R$ is a named collection of three rows. Each row of has the same set of named columns (`ID`, `Name`, `Date`), and each column is of a specific data type. Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
+
+To connect information across tables, the relational model relies on 'key' columns:
+* A **primary key** uniquely identifies each row within a table (e.g., ID in the relation $R$).
+* A **foreign key** creates a logical link to a primary key in another table, allowing data in one table to reference data in another.
 
 This precise definition gives the relational model a solid theoretical foundation, ensuring clear, unambiguous concepts and avoiding ad-hoc exceptions. As a result, communication among users, developers, and researchers is far more consistent than in earlier, less formal database approaches.
 
@@ -63,6 +66,63 @@ In the rest of this blogpost, the focus is on DQL, since querying is where most 
 [explain dataset/columns and note that this is an important first step in answering business questions]()
 
 [note that the order of evaluation talked below pertains to logical order; dbs are free to execute them in any order as long as the final result matches the logical view result]()
+
+<!-- /////////////////// -->
+<!-- SELECT -->
+<!-- /////////////////// -->
+### SELECT
+
+Most people think of `SELECT` as “picking columns” from a table — and at the surface, that’s true. You write
+```sql
+SELECT title, author FROM books;
+```
+and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows. In other words, while you think in columns, the database always thinks in rows.
+
+Each "column" in `SELECT` can be sourced from a table, a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse. Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
+
+<!-- /////////////////// -->
+<!-- FROM -->
+<!-- /////////////////// -->
+### FROM
+
+* `from` clause introduces the data sources used in the query, and supports declaring how those different sources relate to each other.
+    * tables (base, virt, etc)
+    * joins (inner, left outer join, right outer join, full outer join, cross join, lateral join)
+        * `Left join` semantics are to keep the whole result set of the table lexically on the left of the
+        operator, and to fill-in the columns for the table on the right of the left join op-
+        erator when some data is found that matches the join condition, otherwise using
+        NULL as the column’s value.
+        * The best way to do that in SQL is using a `lateral join`. This form of join allows one to write a subquery that runs in a loop over a data set.
+        * filter condition on join itself vs in where clause
+* `where` clause acts as a filter for the query: when the filter evaluates to true then we keep the row in
+the result set and when the filter evaluates to false we skip that row.
+    * keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
+    * combine filters with the `and` operator because it allows for short-circuit evaluations
+    * `or` operator, which is more complex to optimize for, in particular with respect to indexes.
+    * subquery expressions (`exists`, `in`, `not in`, `any/some`, `all`). Be careful about `not in` semantics with `NULL`.
+* `order by` clause guarantees ordering of the result set of any query. In its simplest form the `order by` works with one column or several columns that are part of our data model. The `order by` clause can also refer to query aliases and computed values
+* `limit` clause
+  * for proper pagination, use `limit` with a range predicate (WHERE (x, y) > (x1, y1)) that matches your ordering columns; dont ever use `offset`.
+* `group by` clause introduces aggregates in SQL, and allows implementing much the same thing as map/reduce in other systems: map your data into dif- ferent groups, and in each group reduce the data set to a single value.
+* `having clause` purpose is to filter the result set to only those groups that meet the having filtering condition, much as the where clause works for the individual rows selected for the result set.
+    * A restriction with classic aggregates is that you can only run them through a single group definition at a time. In some cases, you want to be able to compute aggregates for several groups in parallel. For those cases, SQL provides the `grouping sets` feature.
+    * The `rollup` clause generates permutations for each column of the grouping sets, one after the other. That’s useful mainly for hierarchical data sets, and it is still useful in our Formula One world of champions.
+    * Another kind of grouping sets clause shortcut is named `cube`, which extends to all permutations available, including partial ones:
+* `Common table expression` is the full name of the with clause that you see in effect
+in the query. It allows us to run a subquery as a prologue, and then refer to its
+result set like any other relation in the from clause of the main query.
+* set operations
+  * As expected with `union` you can assemble a result set from the result of several queries:
+  * Here it’s also possible to work with the `intersect` operator in between result sets.
+  * The `except` operator is very useful for writing test cases, as it allows us to compute a difference in between two result sets.
+
+
+
+
+
+
+
+
 
 ### example #1
 A simple query that retrieves all books with an average rating above 4 looks like this:
