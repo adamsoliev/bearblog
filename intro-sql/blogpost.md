@@ -76,24 +76,52 @@ Most people think of `SELECT` as “picking columns” from a table — and at t
 ```sql
 SELECT title, author FROM books;
 ```
-and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows. In other words, while you think in columns, the database always thinks in rows.
+and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a table, a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse. Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
+Each "column" in `SELECT` can be sourced from a table, a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse.
+
+Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
 
 <!-- /////////////////// -->
 <!-- FROM -->
 <!-- /////////////////// -->
 ### FROM
 
-* `from` clause introduces the data sources used in the query, and supports declaring how those different sources relate to each other.
-    * tables (base, virt, etc)
-    * joins (inner, left outer join, right outer join, full outer join, cross join, lateral join)
-        * `Left join` semantics are to keep the whole result set of the table lexically on the left of the
-        operator, and to fill-in the columns for the table on the right of the left join op-
-        erator when some data is found that matches the join condition, otherwise using
-        NULL as the column’s value.
-        * The best way to do that in SQL is using a `lateral join`. This form of join allows one to write a subquery that runs in a loop over a data set.
-        * filter condition on join itself vs in where clause
+`FROM` clause is used to specify the data sources used in the query and those can be references to base tables (defined explicitly with `CREATE TABLE ..`), derived tables (subquery `(SELECT ...)`), a join construct or a combination of these.
+
+`FROM` also supports declaring how those different sources relate to each other using `ON` clause and its two syntactic sugar variants `USING` and `NATURAL`.
+
+```
+T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression
+T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 USING ( join column list )
+T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
+```
+The words INNER and OUTER are optional in all forms. INNER is the default; LEFT, RIGHT, and FULL imply an outer join.
+
+`ON` is the main clause to specify how data sources relate to each other and it needs a join_condition, which determines which rows from the two source tables are considered to “match” and is an expression resulting in a value of type boolean (similar to a WHERE clause) that specifies which rows in a join are considered to match.
+
+`USING` is syntactic sugar on top of ON (USING(a,b) is shorthand for ON left_table.a = right_table.a AND left_table.b = right_table.b). Also, USING implies that only one of each pair of equivalent columns will be included in the join output, not both.
+
+`NATURAL` is syntactic sugar on top of USING (NATURAL is shorthand for a USING list that mentions all columns in the two tables that have matching names. If there are no common column names, NATURAL is equivalent to ON TRUE.)
+
+`inner join` produces a joined table that has one row for each matched rows of table1 and table2.
+
+`left join` semantics are to keep the whole result set of the table lexically on the left of the
+operator, and to fill-in the columns for the table on the right of the left join op-
+erator when some data is found that matches the join condition, otherwise using
+NULL as the column’s value.
+
+`right join` semantics is the opposite of `left join`
+
+`lateral join` allows one to write a subquery that runs in a loop over a data set.
+
+The join condition specified with ON can also contain conditions that do not relate directly to the join. A restriction placed in the ON clause is processed before the join, while a restriction placed in the WHERE clause is processed after the join. That does not matter with inner joins, but it matters a lot with outer joins.
+
+<!-- /////////////////// -->
+<!-- WHERE -->
+<!-- /////////////////// -->
+### WHERE
+
 * `where` clause acts as a filter for the query: when the filter evaluates to true then we keep the row in
 the result set and when the filter evaluates to false we skip that row.
     * keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
