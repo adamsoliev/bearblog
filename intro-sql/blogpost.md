@@ -118,22 +118,22 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 <!-- /////////////////// -->
 ### WHERE
 
-`WHERE` clause acts as a filter for the result of the `FROM` clause: each row is checked against the filter. If it evaluates to true, you keep the row in the output table, otherwise (false or null) you skip it.
+`WHERE` clause filters rows produced by the `FROM` clause. Each row is checked against the condition: if it evaluates to true, the row is kept; if false or null, it's discarded.
 
-Conditions in the `WHERE` clause can be combined with either `AND` or `OR`. `AND` allows for short-circuit evaluations while `OR` is more complex to optimize for, in particular with respect to indexes.
+You can combine conditions with `AND` and `OR`. `AND` allows short-circuit evaluation (stopping once one condition fails), while `OR` is more complex to optimize for – especially with respect to indexes.
 
 #### Subquery expressions
-* `EXISTS` cares about whether the argument subquery returns any rows and not on the contents of those rows. If it returns at least one row, `EXISTS` evaluates to true, otherwise to false.
+* `EXISTS` checks whether the argument subquery returns any rows (ignoring the contents of those rows). It returns true if the result set has at least one row.
 
-* `IN`/`NOT IN` evaluates the expression and compares it to each row of the subquery result. If any equal subquery row is found, it evaluates to true/false, respectively. Otherwise to false/true, respectively.
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.
 
 If the expression consists of multiple columns, the subquery must return exactly as many columns.
 
-Be careful about `NOT IN` semantics with `NULL` because if the subquery result contains `NULL`, it evaluates to UNKNOWN (so effectively false for filtering).
+Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering).
 
-* `ANY/SOME` offer more flexibility with respect to comparison operators (`=`, `<>`, `>`, `<`, `>=`, `<=`) while `IN` implicitly performs an equality comparison.
+* `ANY/SOME` allow using other comparison operators beyond `=` – such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
 
-* `ALL` similar to `ANY` but instead of a single row evaluating to true, all rows need to result in true.
+* `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
 
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
 
@@ -145,11 +145,23 @@ Keep filters simple so that the database can match them against indexes and avoi
 * `order by` clause guarantees ordering of the result set of any query. In its simplest form the `order by` works with one column or several columns that are part of our data model. The `order by` clause can also refer to query aliases and computed values
 * `limit` clause
   * for proper pagination, use `limit` with a range predicate (WHERE (x, y) > (x1, y1)) that matches your ordering columns; dont ever use `offset`.
+
+<!-- /////////////////// -->
+<!-- GROUP BY -->
+<!-- /////////////////// -->
+### GROUP BY
+
 * `group by` clause introduces aggregates in SQL, and allows implementing much the same thing as map/reduce in other systems: map your data into dif- ferent groups, and in each group reduce the data set to a single value.
 * `having clause` purpose is to filter the result set to only those groups that meet the having filtering condition, much as the where clause works for the individual rows selected for the result set.
     * A restriction with classic aggregates is that you can only run them through a single group definition at a time. In some cases, you want to be able to compute aggregates for several groups in parallel. For those cases, SQL provides the `grouping sets` feature.
     * The `rollup` clause generates permutations for each column of the grouping sets, one after the other. That’s useful mainly for hierarchical data sets, and it is still useful in our Formula One world of champions.
     * Another kind of grouping sets clause shortcut is named `cube`, which extends to all permutations available, including partial ones:
+
+<!-- /////////////////// -->
+<!-- COMMON TABLE EXPRESSION (CTE) -->
+<!-- /////////////////// -->
+### COMMON TABLE EXPRESSION (CTE)
+
 * `Common table expression` is the full name of the with clause that you see in effect
 in the query. It allows us to run a subquery as a prologue, and then refer to its
 result set like any other relation in the from clause of the main query.
