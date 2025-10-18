@@ -112,11 +112,8 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
 #### Join conditions
-
 * `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.
-
 * `USING` is syntactic sugar for equality joins: `USING(a,b)` expands to `ON left_table.a = right_table.a AND left_table.b = right_table.b`.
-
 * `NATURAL` is syntactic sugar for a `USING` clause over all columns with the same name in both tables. If no such columns exist, it behaves like `ON TRUE`.
 
 <!-- /////////////////// -->
@@ -130,7 +127,6 @@ You can combine conditions with `AND` and `OR`. `AND` allows short-circuit evalu
 
 #### Subquery expressions
 * `EXISTS` checks whether the argument subquery returns any rows (ignoring the contents of those rows). It returns true if the result set has at least one row.
-
 * `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.
 
 If the expression consists of multiple columns, the subquery must return exactly as many columns.
@@ -138,7 +134,6 @@ If the expression consists of multiple columns, the subquery must return exactly
 Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering).
 
 * `ANY/SOME` allow using other comparison operators beyond `=` – such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
-
 * `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
 
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
@@ -148,7 +143,11 @@ Keep filters simple so that the database can match them against indexes and avoi
 <!-- /////////////////// -->
 ### ORDER BY
 
-* `order by` clause guarantees ordering of the result set of any query. In its simplest form the `order by` works with one column or several columns that are part of our data model. The `order by` clause can also refer to query aliases and computed values
+`ORDER BY` defines the order in which the final result set is returned. It can sort by one or multiple columns, or by expressions derived from them. The sort direction is controlled with `ASC` (ascending, the default) or `DESC` (descending).
+
+`NULLS FIRST` and `NULLS LAST` specify where `NULL` values appear in the order. By default, most databases treat `NULL` as larger than any non-null value — so they appear last when sorting ascending.
+
+`ORDER BY` can also be used after set operations like `UNION`, `INTERSECT`, or `EXCEPT`, but in those cases it can only reference output column names or their positional numbers (not arbitrary expressions).
 
 <!-- /////////////////// -->
 <!-- LIMIT -->
