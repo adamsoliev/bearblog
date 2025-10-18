@@ -100,7 +100,7 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 
 #### Join types
 * `INNER JOIN` keeps only rows that match on both sides.
-* `LEFT JOIN` keeps all rows from the left table, filling unmatched right-side columns with NULL.
+* `LEFT JOIN` keeps all rows from the left table and fills-in columns from the right table only when you have a match, otherwise using NULL as the columns' value.
 * `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
 * `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
@@ -118,12 +118,30 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 <!-- /////////////////// -->
 ### WHERE
 
-* `where` clause acts as a filter for the query: when the filter evaluates to true then we keep the row in
-the result set and when the filter evaluates to false we skip that row.
-    * keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
-    * combine filters with the `and` operator because it allows for short-circuit evaluations
-    * `or` operator, which is more complex to optimize for, in particular with respect to indexes.
-    * subquery expressions (`exists`, `in`, `not in`, `any/some`, `all`). Be careful about `not in` semantics with `NULL`.
+`WHERE` clause acts as a filter for the result of the `FROM` clause: each row is checked against the filter. If it evaluates to true, you keep the row in the output table, otherwise (false or null) you skip it.
+
+Conditions in the `WHERE` clause can be combined with either `AND` or `OR`. `AND` allows for short-circuit evaluations while `OR` is more complex to optimize for, in particular with respect to indexes.
+
+#### Subquery expressions
+* `EXISTS` cares about whether the argument subquery returns any rows and not on the contents of those rows. If it returns at least one row, `EXISTS` evaluates to true, otherwise to false.
+
+* `IN`/`NOT IN` evaluates the expression and compares it to each row of the subquery result. If any equal subquery row is found, it evaluates to true/false, respectively. Otherwise to false/true, respectively.
+
+If the expression consists of multiple columns, the subquery must return exactly as many columns.
+
+Be careful about `NOT IN` semantics with `NULL` because if the subquery result contains `NULL`, it evaluates to UNKNOWN (so effectively false for filtering).
+
+* `ANY/SOME` offer more flexibility with respect to comparison operators (`=`, `<>`, `>`, `<`, `>=`, `<=`) while `IN` implicitly performs an equality comparison.
+
+* `ALL` similar to `ANY` but instead of a single row evaluating to true, all rows need to result in true.
+
+Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
+
+<!-- /////////////////// -->
+<!-- ORDER BY -->
+<!-- /////////////////// -->
+### ORDER BY
+
 * `order by` clause guarantees ordering of the result set of any query. In its simplest form the `order by` works with one column or several columns that are part of our data model. The `order by` clause can also refer to query aliases and computed values
 * `limit` clause
   * for proper pagination, use `limit` with a range predicate (WHERE (x, y) > (x1, y1)) that matches your ordering columns; dont ever use `offset`.
@@ -139,13 +157,6 @@ result set like any other relation in the from clause of the main query.
   * As expected with `union` you can assemble a result set from the result of several queries:
   * Here it’s also possible to work with the `intersect` operator in between result sets.
   * The `except` operator is very useful for writing test cases, as it allows us to compute a difference in between two result sets.
-
-
-
-
-
-
-
 
 
 ### example #1
