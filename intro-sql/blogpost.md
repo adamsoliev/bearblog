@@ -154,15 +154,11 @@ Keep filters simple so that the database can match them against indexes and avoi
 <!-- LIMIT and OFFSET -->
 <!-- /////////////////// -->
 ### LIMIT and OFFSET
-`LIMIT` restricts the number of rows returned by a query — it’s how you ask the database to “just give me the first n.”
+`LIMIT` restricts the number of rows returned by a query, while `OFFSET` skips a given number of rows before starting to return results. These two are often paired with `ORDER BY` to guarantee a consistent and predictable order of results.
 
-`OFFSET` skips a given number of rows before starting to return results.
+Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
 
-These two clauses are often paired with `ORDER BY` to guarantee a consistent and predictable order of results.
-
-Together, `LIMIT` and `OFFSET` are commonly used for pagination: fetching the first X rows, then skipping over previously retrieved ones in subsequent queries. While this is a common implementation, it becomes inefficient when indexes exist on the ordering columns – the database must still process and potentially sort all preceding rows before skipping them.
-
-A more efficient alternative is to use a top-N hint (recognized by most databases) for the initial set of results and then use `WHERE` based on specific key values for subsequent queries. This method, known as **keyset pagination**, allows the database to jump directly to the next page using indexed lookups.
+A more efficient alternative is to use a top-N hint (recognized by most databases) for the initial set of results and then use `WHERE` based on specific key ranges for subsequent queries. This method, known as **keyset pagination**, allows the database to jump directly to the next page using indexed lookups.
 
 <!-- /////////////////// -->
 <!-- GROUP BY -->
