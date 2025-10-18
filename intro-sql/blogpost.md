@@ -87,35 +87,31 @@ Modern databases make it easy to perform substantial data transformation right i
 <!-- /////////////////// -->
 ### FROM
 
-`FROM` clause is used to specify the data sources used in the query and those can be references to base tables (defined explicitly with `CREATE TABLE ..`), derived tables (subquery `(SELECT ...)`), a join construct or a combination of these.
+The `FROM` clause defines *where* your data comes from. Each source can be a base table (created with `CREATE TABLE`), a derived table (a subquery like `(SELECT …)`), a join, or a combination of these.
 
-`FROM` also supports declaring how those different sources relate to each other using `ON` clause and its two syntactic sugar variants `USING` and `NATURAL`.
+You can also specify *how* these sources relate to each other using a join condition — written with `ON`, or its shorthand forms `USING` and `NATURAL`:
 
 ```
 T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression
 T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 USING ( join column list )
 T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 ```
-The words INNER and OUTER are optional in all forms. INNER is the default; LEFT, RIGHT, and FULL imply an outer join.
+`INNER` and `OUTER` are optional; `INNER` is the default. `LEFT`, `RIGHT`, and `FULL` all imply outer joins.
 
-`ON` is the main clause to specify how data sources relate to each other and it needs a join_condition, which determines which rows from the two source tables are considered to “match” and is an expression resulting in a value of type boolean (similar to a WHERE clause) that specifies which rows in a join are considered to match.
+#### Join types
+* `INNER JOIN` keeps only rows that match on both sides.
+* `LEFT JOIN` keeps all rows from the left table, filling unmatched right-side columns with NULL.
+* `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
+* `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
+* `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
-`USING` is syntactic sugar on top of ON (USING(a,b) is shorthand for ON left_table.a = right_table.a AND left_table.b = right_table.b). Also, USING implies that only one of each pair of equivalent columns will be included in the join output, not both.
+#### Join conditions
 
-`NATURAL` is syntactic sugar on top of USING (NATURAL is shorthand for a USING list that mentions all columns in the two tables that have matching names. If there are no common column names, NATURAL is equivalent to ON TRUE.)
+* `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.
 
-`inner join` produces a joined table that has one row for each matched rows of table1 and table2.
+* `USING` is syntactic sugar for equality joins: `USING(a,b)` expands to `ON left_table.a = right_table.a AND left_table.b = right_table.b`.
 
-`left join` semantics are to keep the whole result set of the table lexically on the left of the
-operator, and to fill-in the columns for the table on the right of the left join op-
-erator when some data is found that matches the join condition, otherwise using
-NULL as the column’s value.
-
-`right join` semantics is the opposite of `left join`
-
-`lateral join` allows one to write a subquery that runs in a loop over a data set.
-
-The join condition specified with ON can also contain conditions that do not relate directly to the join. A restriction placed in the ON clause is processed before the join, while a restriction placed in the WHERE clause is processed after the join. That does not matter with inner joins, but it matters a lot with outer joins.
+* `NATURAL` is syntactic sugar for a `USING` clause over all columns with the same name in both tables. If no such columns exist, it behaves like `ON TRUE`.
 
 <!-- /////////////////// -->
 <!-- WHERE -->
