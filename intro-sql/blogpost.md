@@ -3,6 +3,12 @@
 * [Relational Model](#relational-model)
 * [Relational algebra and calculus](#relational-algebra-and-calculus)
 * [Basic queries walkthrough](#basic-queries-walkthrough)
+  * [SELECT](#select)
+  * [FROM](#from)
+  * [WHERE](#where)
+  * [ORDER BY](#order-by)
+  * [GROUP BY](#group-by)
+  * [COMMON TABLE EXPRESSION](#common-table-expression)
 * [Advanced queries walkthrough](#advanced-queries-walkthrough)
 * [Optimizations](#optimizations)
 * [Conclusion](#conclusion)
@@ -35,7 +41,7 @@ A possible relation $R$ on these three sets could be:
 | 75 | "C" | 2022-07-11 |
 | 32 | "E" | 2019-03-27 |
 
-Note $R$ is a named collection of three rows. Each row of has the same set of named columns (`ID`, `Name`, `Date`), and each column is of a specific data type. Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
+Note $R$ is a named collection of three rows. Each row has the same set of named columns (`ID`, `Name`, `Date`), and each column is of a specific data type. Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
 
 To connect information across tables, the relational model relies on 'key' columns:
 * A **primary key** uniquely identifies each row within a table (e.g., ID in the relation $R$).
@@ -59,7 +65,7 @@ SQL covers several kinds of tasks, often grouped into four main categories:
 - DCL (data control language) - Manages user access and permissions. (e.g., `GRANT`, `REVOKE`)
 - DML (data manipulation language) - Inserts, updates, or deletes table data. (e.g., `INSERT`, `UPDATE`, `DELETE`)
 
-In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort—and much of SQL’s expressive power—lies.
+In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies.
 
 [env setup readme file in GitHub linked here]()
 
@@ -143,6 +149,11 @@ Keep filters simple so that the database can match them against indexes and avoi
 ### ORDER BY
 
 * `order by` clause guarantees ordering of the result set of any query. In its simplest form the `order by` works with one column or several columns that are part of our data model. The `order by` clause can also refer to query aliases and computed values
+
+<!-- /////////////////// -->
+<!-- LIMIT -->
+<!-- /////////////////// -->
+### LIMIT
 * `limit` clause
   * for proper pagination, use `limit` with a range predicate (WHERE (x, y) > (x1, y1)) that matches your ordering columns; dont ever use `offset`.
 
@@ -160,7 +171,7 @@ Keep filters simple so that the database can match them against indexes and avoi
 <!-- /////////////////// -->
 <!-- COMMON TABLE EXPRESSION (CTE) -->
 <!-- /////////////////// -->
-### COMMON TABLE EXPRESSION (CTE)
+### COMMON TABLE EXPRESSION
 
 * `Common table expression` is the full name of the with clause that you see in effect
 in the query. It allows us to run a subquery as a prologue, and then refer to its
