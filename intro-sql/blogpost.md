@@ -146,7 +146,7 @@ SELECT
     published_year + 1 AS next_publication_year,
     upper(author) AS author_upper
 FROM
-    books
+    books;
 ```
 
 Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
@@ -164,8 +164,7 @@ SELECT
     END AS circulation_status,
     (make_date(b.published_year, 1, 1) + INTERVAL '150 years')::date AS public_domain_anniversary,
     to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
-FROM books b
-ORDER BY b.title;
+FROM books b;
 ```
 The result table now contains transformed values like `The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01`.
 
