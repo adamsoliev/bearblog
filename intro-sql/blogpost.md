@@ -20,7 +20,7 @@
 # <a id="what-and-why" href="#table-of-contents">What and why</a>
 This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance.
 
-This blogpost was written primary for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
+This blogpost was written primarily for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
 
 # <a id="relational-model" href="#table-of-contents">Relational model</a>
 
@@ -56,7 +56,7 @@ In practice, the relational model deliberately stops short of access method and 
 * DBMS builders can innovate on access methods and storage to improve performance without breaking user programs.
 
 # <a id="relational-algebra-and-calculus" href="#table-of-contents">Relational algebra and calculus</a>
-Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL, that we know today, is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
+Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL that we know today is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
@@ -66,9 +66,7 @@ SQL covers several kinds of tasks, often grouped into four main categories:
 - DCL (data control language) - Manages user access and permissions. (e.g., `GRANT`, `REVOKE`)
 - DML (data manipulation language) - Inserts, updates, or deletes table data. (e.g., `INSERT`, `UPDATE`, `DELETE`)
 
-In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies.
-
-The examples below rely on a library lending dataset (`users`, `library`, `books`). To keep the narrative approachable, the inserts load six illustrative rows per table; clone and extend them later if you want larger test volumes.
+In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies. The examples rely on the following library lending dataset, consisting of `users`, `library`, and `books` tables. 
 
 ```sql
 CREATE TABLE users (
@@ -180,7 +178,7 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 
 #### Join types
 * `INNER JOIN` keeps only rows that match on both sides.
-* `LEFT JOIN` keeps all rows from the left table and fills-in columns from the right table only when you have a match, otherwise using NULL as the columns' value.
+* `LEFT JOIN` keeps all rows from the left table and fills in columns from the right table only when you have a match, otherwise using NULL as the column values.
 * `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
 * `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
 * `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
@@ -188,7 +186,6 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 
 #### Old join syntax vs SQL92
 
-> **Note**
 > This distinction still surfaces in older tutorials and legacy code, so it’s worth a look.
 
 Before SQL-92, joins were written by listing tables separated with commas and moving the join condition to the `WHERE` clause:
@@ -279,7 +276,8 @@ WHERE genre='Literature' AND published_year=1869;
 * `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.   <br><br> 
   If the expression consists of multiple columns, the subquery must return exactly as many columns. For example, the following query results in a `subquery has too few columns` error. 
   ```sql
-  SELECT b.title
+  SELECT
+      b.title
   FROM books AS b
   WHERE (b.library_id, b.genre, b.published_year) IN (
       SELECT
@@ -291,16 +289,19 @@ WHERE genre='Literature' AND published_year=1869;
   ```
 
   Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering). For instance:
+
   ```sql
-  SELECT u.full_name
+  SELECT
+      u.full_name
   FROM users AS u
   WHERE u.user_id NOT IN (
-      SELECT b.checked_out_by
+      SELECT
+          b.checked_out_by
       FROM books AS b
   );
   ```
 
-  Because `books.checked_out_by` includes `NULL`, this query returns zero rows — even though you'd expect users without an active checkout to appear.
+  Because `books.checked_out_by` includes `NULL`, this query returns zero rows—even though you would expect users without an active checkout to appear.
 * `ANY/SOME` allow using other comparison operators beyond `=`, such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
 * `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
 
@@ -398,16 +399,16 @@ group by
 <!-- /////////////////// -->
 ### <a id="common-table-expressions" href="#table-of-contents">COMMON TABLE EXPRESSIONS</a>
 
-`COMMON TABLE EXPRESSIONS or CTEs` allows you to define a named subquery and run it as a prologue, and then refer to its result set like any other relation in `FROM` of the main query.
+`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`.
 
-The optional `RECURSIVE` keyword turns a CTE from a mere syntactic convenience into a feature where CTE query can refer to its own output. A recursive CTE has the general form:
+The optional `RECURSIVE` keyword turns a CTE from a mere syntactic convenience into a feature where the CTE query can refer to its own output. A recursive CTE has the general form:
 ```
 non-recursive term
 UNION or UNION ALL
 recursive term
 ```
 
-Only the recursive term may reference CTE itself. The first term acts as the base case, and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met.
+Only the recursive term may reference the CTE itself. The first term acts as the base case, and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met.
 
 Recursive CTEs are most often used to work with hierarchical or graph-like data.
 
