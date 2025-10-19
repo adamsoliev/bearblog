@@ -138,7 +138,36 @@ and get just those two columns. But under the hood, `SELECT` doesn’t actually 
 
 Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse.
 
+For example, to mix base columns with literals, expressions, and aggregates, you might summarize books by genre:
+```sql
+SELECT
+    genre,
+    COUNT(*) AS total_titles,
+    MAX(published_year) AS newest_publication_year,
+    COUNT(*) = 1 AS is_single_title_genre,
+    'library dataset' AS source_label
+FROM books
+GROUP BY genre;
+```
+This yields one row per genre such as `Literature | 4 | 1880 | false | library dataset`.
+
 Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
+
+Suppose you want to surface who currently has each book and render a friendly status in one step:
+```sql
+SELECT
+    b.title,
+    COALESCE(u.full_name, 'Available') AS current_holder,
+    CASE
+        WHEN u.membership_tier = 'STUDENT' THEN 'student checkout'
+        WHEN u.full_name IS NULL THEN 'on shelf'
+        ELSE lower(u.membership_tier) || ' checkout'
+    END AS circulation_status
+FROM books b
+    LEFT JOIN users u ON u.user_id = b.checked_out_by
+ORDER BY b.title;
+```
+The result table now contains transformed values like `The Cherry Orchard | Alice Smith | standard checkout`.
 
 <!-- /////////////////// -->
 <!-- FROM -->
