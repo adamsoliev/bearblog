@@ -229,14 +229,18 @@ group by
 <!-- /////////////////// -->
 ### COMMON TABLE EXPRESSION
 
-* `Common table expression` is the full name of the with clause that you see in effect
-in the query. It allows us to run a subquery as a prologue, and then refer to its
-result set like any other relation in the from clause of the main query.
-* set operations
-  * As expected with `union` you can assemble a result set from the result of several queries:
-  * Here it’s also possible to work with the `intersect` operator in between result sets.
-  * The `except` operator is very useful for writing test cases, as it allows us to compute a difference in between two result sets.
+`COMMON TABLE EXPRESSIONS or CTEs` allows you to define a named subquery and run it as a prologue, and then refer to its result set like any other relation in `FROM` of the main query.
 
+The optional `RECURSIVE` keyword turns a CTE from a mere syntactic convenience into a feature where CTE query can refer to its own output. A recursive CTE has the general form:
+```
+non-recursive term
+UNION or UNION ALL
+recursive term
+```
+
+Only the recursive term may reference CTE itself. The first term acts as the base case, and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met.
+
+Recursive CTEs are most often used to work with hierarchical or graph-like data.
 
 <!-- FIXME -->
 [null pitfalls]()
