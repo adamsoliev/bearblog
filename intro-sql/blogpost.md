@@ -188,8 +188,31 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
-<!-- FIXME -->
-[old join syntax vs SQL92]()
+#### Old join syntax vs SQL92
+
+> **Note**
+> This distinction still surfaces in older tutorials and legacy code, so it’s worth a look.
+
+Before SQL-92, joins were written by listing tables separated with commas and moving the join condition to the `WHERE` clause:
+
+```sql
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b, users AS u
+WHERE u.user_id = b.checked_out_by;
+```
+
+It works, but the relationship between tables is easy to miss and outer joins require vendor-specific extensions. SQL-92 introduced explicit join operators that keep the join condition next to the tables being combined:
+
+```sql
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b
+INNER JOIN users AS u
+    ON u.user_id = b.checked_out_by;
+```
 
 #### Join conditions
 * `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.

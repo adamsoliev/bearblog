@@ -50,6 +50,9 @@ VALUES
     (6, 6, 'One Day in the Life of Ivan Denisovich', 'Alexander Solzhenitsyn', 'Historical Fiction', 1962, 3);
 
 
+-- ////////////////////
+-- select
+-- ////////////////////
 SELECT title, author FROM books;
 
 
@@ -73,4 +76,54 @@ SELECT
     END AS circulation_status,
     (make_date(b.published_year, 1, 1) + INTERVAL '150 years')::date AS public_domain_anniversary,
     to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
-FROM books b;
+FROM books AS b;
+
+-- ////////////////////
+-- from
+-- ////////////////////
+-- old join vs sql92
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b, users AS u
+WHERE u.user_id = b.checked_out_by;
+
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b
+INNER JOIN users AS u
+    ON u.user_id = b.checked_out_by;
+
+
+
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b
+    JOIN users AS u
+    ON u.user_id = b.checked_out_by;
+
+
+SELECT
+    catalog.title,
+    active_loans.checked_out_by
+FROM
+    (SELECT book_id, title FROM books) AS catalog
+    JOIN
+    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans
+    USING (book_id);
+
+
+SELECT
+    catalog.title,
+    active_loans.checked_out_by
+FROM
+    (SELECT book_id, title FROM books) AS catalog
+    NATURAL JOIN
+    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans;
+
+
+-- ////////////////////
+-- where
+-- ////////////////////
