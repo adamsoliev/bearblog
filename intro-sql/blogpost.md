@@ -17,12 +17,12 @@
 
 ---
 
-# What and why
+# <a id="what-and-why" href="#table-of-contents">What and why</a>
 This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance.
 
 This blogpost was written primary for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
 
-# Relational model
+# <a id="relational-model" href="#table-of-contents">Relational model</a>
 
 The relational model is built on a simple but powerful idea borrowed directly from mathematics: a relation is just a set of tuples.
 
@@ -55,10 +55,10 @@ In practice, the relational model deliberately stops short of access method and 
 * Users can write applications against the logical model without being tied to how data is accessed and physically arranged.
 * DBMS builders can innovate on access methods and storage to improve performance without breaking user programs.
 
-# Relational algebra and calculus
+# <a id="relational-algebra-and-calculus" href="#table-of-contents">Relational algebra and calculus</a>
 Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL, that we know today, is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
 
-# Basic SQL
+# <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
 SQL covers several kinds of tasks, often grouped into four main categories:
 - DQL (data query language) - Extracts data from tables. (e.g., `SELECT`)
@@ -122,8 +122,6 @@ VALUES
     (5, 5, 'The Cherry Orchard', 'Anton Chekhov', 'Drama', 1904, 1),
     (6, 6, 'One Day in the Life of Ivan Denisovich', 'Alexander Solzhenitsyn', 'Historical Fiction', 1962, 3);
 ```
-
-[note that the order of evaluation talked below pertains to logical order; dbs are free to execute them in any order as long as the final result matches the logical view result]()
 
 <!-- /////////////////// -->
 <!-- SELECT -->
@@ -262,14 +260,48 @@ FROM
 
 `WHERE` clause filters rows produced by the `FROM` clause. Each row is checked against the condition: if it evaluates to true, the row is kept; if false or null, it's discarded.
 
+```sql
+SELECT title
+FROM books
+WHERE genre='Literature';
+```
+
 You can combine conditions with `AND` and `OR`. `AND` allows short-circuit evaluation (stopping once one condition fails), while `OR` is more complex to optimize for – especially with respect to indexes.
+
+```sql
+SELECT title
+FROM books
+WHERE genre='Literature' AND published_year=1869;
+```
 
 #### Subquery expressions
 * `EXISTS` checks whether the argument subquery returns any rows (ignoring the contents of those rows). It returns true if the result set has at least one row.
-* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.  <br><br>
-If the expression consists of multiple columns, the subquery must return exactly as many columns.  <br><br>
-Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering).<br><br>
-* `ANY/SOME` allow using other comparison operators beyond `=` – such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.   <br><br> 
+  If the expression consists of multiple columns, the subquery must return exactly as many columns. For example, the following query results in a `subquery has too few columns` error. 
+  ```sql
+  SELECT b.title
+  FROM books AS b
+  WHERE (b.library_id, b.genre, b.published_year) IN (
+      SELECT
+          l.library_id,
+          'Literature' AS required_genre
+      FROM library AS l
+      WHERE l.city = 'Boston'
+  );
+  ```
+
+  Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering). For instance:
+  ```sql
+  SELECT u.full_name
+  FROM users AS u
+  WHERE u.user_id NOT IN (
+      SELECT b.checked_out_by
+      FROM books AS b
+  );
+  ```
+
+  Because `books.checked_out_by` includes `NULL`, this query returns zero rows — even though you'd expect users without an active checkout to appear.
+* `ANY/SOME` allow using other comparison operators beyond `=`, such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
 * `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
 
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
@@ -394,14 +426,14 @@ In aggregate functions like `COUNT`, using `*` means null is also counted
 ```
 ---
 
-# Advanced queries walkthrough
+# <a id="advanced-queries-walkthrough" href="#table-of-contents">Advanced queries walkthrough</a>
 <!--<div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
 </div>-->
 
-# Optimizations
+# <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
-# Conclusion
+# <a id="conclusion" href="#table-of-contents">Conclusion</a>
 
-# References
+# <a id="references" href="#table-of-contents">References</a>
 [^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.

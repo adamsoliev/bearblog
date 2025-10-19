@@ -127,3 +127,34 @@ FROM
 -- ////////////////////
 -- where
 -- ////////////////////
+
+select title
+from books
+where genre='Literature';
+
+
+select title
+from books
+where genre='Literature' AND published_year=1869;
+
+
+SELECT
+    b.title
+FROM books AS b
+WHERE (b.library_id, b.genre, b.published_year) IN (
+    SELECT
+        l.library_id,
+        'Literature' AS required_genre
+    FROM library AS l
+    WHERE l.city = 'Boston'
+);
+
+
+SELECT
+    u.full_name
+FROM users AS u
+WHERE u.user_id NOT IN (
+    SELECT b.checked_out_by
+    FROM books AS b
+);
+
