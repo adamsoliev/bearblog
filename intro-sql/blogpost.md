@@ -2,7 +2,7 @@
 * [What and why](#what-and-why)
 * [Relational Model](#relational-model)
 * [Relational algebra and calculus](#relational-algebra-and-calculus)
-* [Basic queries walkthrough](#basic-queries-walkthrough)
+* [Basic SQL](#basic-sql)
   * [SELECT](#select)
   * [FROM](#from)
   * [WHERE](#where)
@@ -58,7 +58,7 @@ In practice, the relational model deliberately stops short of access method and 
 # Relational algebra and calculus
 Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL, that we know today, is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
 
-# Basic queries walkthrough
+# Basic SQL
 
 SQL covers several kinds of tasks, often grouped into four main categories:
 - DQL (data query language) - Extracts data from tables. (e.g., `SELECT`)
@@ -67,10 +67,6 @@ SQL covers several kinds of tasks, often grouped into four main categories:
 - DML (data manipulation language) - Inserts, updates, or deletes table data. (e.g., `INSERT`, `UPDATE`, `DELETE`)
 
 In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies.
-
-[env setup readme file in GitHub linked here]()
-
-[explain dataset/columns and note that this is an important first step in answering business questions]()
 
 [note that the order of evaluation talked below pertains to logical order; dbs are free to execute them in any order as long as the final result matches the logical view result]()
 
@@ -111,6 +107,9 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
 * `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
+
+<!-- FIXME -->
+[old join syntax vs SQL92]()
 
 #### Join conditions
 * `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.
@@ -239,115 +238,7 @@ result set like any other relation in the from clause of the main query.
   * The `except` operator is very useful for writing test cases, as it allows us to compute a difference in between two result sets.
 
 
-### example #1
-A simple query that retrieves all books with an average rating above 4 looks like this:
-```sql
-SELECT *
-FROM books
-WHERE average_rating >= 4;
-```
-The image below presents visually what role each clause plays in producing the result specified by the query. The database first pulls all rows from `books` (`FROM`), then keeps only those that meet the condition (`WHERE average_rating >= 4`), and finally returns all their columns (`SELECT *`, where `*` means "all columns").
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/first_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
-</div>
-
-A more general template looks like:
-```sql
-SELECT column(s)
-FROM table(s)
-WHERE condition(s)
-```
-Conceptually, `FROM` first forms the Cartesian product (all possible row combinations) of the tables listed. `WHERE` narrows that down by applying one or more conditions (combined with `AND`, `OR`, and `NOT`). Finally, `SELECT` trims the output to just the columns you want.
-
-> Notice the order of evaluation: FROM → WHERE → SELECT.
-
-### example #2
-This query is a bit more involved – it has more filtering conditions (`WHERE`), orders the results by popularity (`ORDER BY`) and returns specific columns.
-
-```sql
-SELECT
-    title,
-    authors,
-    publisher,
-    average_rating,
-    ratings_count
-FROM books
-WHERE
-    language_code = 'eng'
-    AND publication_date > '2010-01-01'
-    AND average_rating > 4.2
-ORDER BY
-    ratings_count DESC;
-```
-Conceptually, the flow remains the same – the database pulls all rows (`FROM`), filters them (`WHERE`), and then returns selected columns (`SELECT`). The only new step is at the end, where it sorts the final rows by `ratings_count` (`ORDER BY`).
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/second_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
-</div>
-
-> Notice the order of evaluation: FROM → WHERE → SELECT → ORDER BY.
-
-### example #3
-This query introduces aggregate functions (`COUNT`, `AVG`, `SUM`), which compute a single result from many rows. Used with `GROUP BY`, they summarize each group, and `HAVING` filters those groups (recall `WHERE`, as seen earlier, filters rows before grouping).
-
-```sql
-SELECT
-    publisher,
-    COUNT(*) AS hit_titles,
-    AVG(average_rating) AS avg_rating,
-    SUM(ratings_count) AS total_ratings
-FROM
-    books
-WHERE
-    (language_code = 'eng' OR language_code='en-US')
-    AND publication_date > '2000-01-01'
-    AND average_rating > 4.0
-GROUP BY
-    publisher
-HAVING
-    COUNT(*) >= 40
-ORDER BY
-    avg_rating DESC,
-    total_ratings DESC;
-```
-
-After pulling all rows and filtering them, the database groups all remaining rows by `publisher`, creating one group per publisher (`GROUP BY`). It discards groups with fewer than 40 rows (`HAVING COUNT(*) >= 40`, where `*` counts every row in the group), calculates aggregate values (`COUNT`, `AVG`, `SUM`) and sorts the summarized results.
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
-</div>
-
-> Notice the order of evaluation: FROM → WHERE → GROUP BY → HAVING → SELECT → ORDER BY.
-
-### example #4
-This query is an intesting one because it introduces nested grouping (first level is done by `GROUP BY` and the second, inner one is done by `PARTITION BY` clause). Unlike `GROUP BY` that collapses a group of rows into one, `PARTITION BY` only segments or "windows" rows that share the same `language_code` to perform a calculation. The query also introduces `DISTINCT` in a aggregate function, which in this case means counting only unique values for `authors` column across all members of a group. Lastly, the query also uses multiple columns in `GROUP BY` clause, which means rows are grouped per each unique combination of `language_code` and `publisher`.
-
-```sql
-SELECT language_code,
-       publisher,
-       AVG(average_rating) AS avg_rating,
-       RANK() OVER (PARTITION BY language_code
-                    ORDER BY AVG(average_rating) DESC) AS publisher_rank,
-       COUNT(DISTINCT authors) AS distinct_authors
-FROM books
-WHERE publisher IS NOT NULL AND language_code IS NOT NULL
-GROUP BY language_code, publisher
-ORDER BY language_code, publisher_rank;
-```
-
-### example #5
-select literals
-group by multiple columns
-join
-where with range condition
-
-### example #6
-join
-where with membership condition
-
-[old join syntax vs SQL92]()
-
+<!-- FIXME -->
 [null pitfalls]()
 ```
 null is the absence of a value;
@@ -360,32 +251,12 @@ To test whether an expression is null, you need to use the is null operator
 To test whether value is in range, you need to test that column to null as well
 In aggregate functions like `COUNT`, using `*` means null is also counted
 ```
-
-[explain the following template at the end of basic section]()
-```sql
-select 	[DISTINCT] [aggregate(column)] <columns|literals|exprs|funcs>
-from 		<table>
-		permanent, derived, temporary, virtual tables
-join on 	<criteria>
-where 	<condition(s)>
-		condition - expression(s) combined with operator(s)
-			equality, range, membership, matching
-		expression - number|column|string|func|subquery|exprs
-		operator - comparison, arithmetic, logical
-group by 	<column(s)> [GROUPING SETS|ROLLUP|CUBE] [HAVING] <criteria>
-order by 	<column(s)|position> <direction>
-```
-
 ---
 
 # Advanced queries walkthrough
-[gemini biz questions suggestions](https://gemini.google.com/app/8c08a5cfd6b1587a)
-[chatgpt biz question suggestions](https://chatgpt.com/c/68ec2f12-62f8-832a-8697-b9694460ca9f)
-
-[EU soccer dataset](https://www.kaggle.com/datasets/hugomathien/soccer)
-
-### pick a dataset and explore it as much as possible
-### go over medium/hard examples of ‘ace data science interview‘ book
+<!--<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
+</div>-->
 
 # Optimizations
 
