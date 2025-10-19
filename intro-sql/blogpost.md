@@ -165,11 +165,65 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 <!-- /////////////////// -->
 ### GROUP BY
 
-* `group by` clause introduces aggregates in SQL, and allows implementing much the same thing as map/reduce in other systems: map your data into dif- ferent groups, and in each group reduce the data set to a single value.
-* `having clause` purpose is to filter the result set to only those groups that meet the having filtering condition, much as the where clause works for the individual rows selected for the result set.
-    * A restriction with classic aggregates is that you can only run them through a single group definition at a time. In some cases, you want to be able to compute aggregates for several groups in parallel. For those cases, SQL provides the `grouping sets` feature.
-    * The `rollup` clause generates permutations for each column of the grouping sets, one after the other. That’s useful mainly for hierarchical data sets, and it is still useful in our Formula One world of champions.
-    * Another kind of grouping sets clause shortcut is named `cube`, which extends to all permutations available, including partial ones:
+`GROUP BY` groups rows that have the same values in one or more specified columns into summary rows. It is almost always used alongside of aggregate functions, such as `COUNT()`, `SUM()`, `AVG()`, which operate on the values within each group, returning a single summary value for that group. Additionally, it can be used to eliminate redundancy, which can also be achieved using the `DISTINCT` clause.
+
+`HAVING` filters the result group set to only those groups that meet the condition. Recall that `WHERE` is a filter for each row while `HAVING` is a filter for each group.
+
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel in one go.
+```sql
+...
+group by
+    a
+
+...
+group by
+    b
+
+-- two accomplished in one
+
+...
+group by
+    grouping set (
+        (a),
+        (b)
+    )
+```
+
+`ROLLUP` is syntactic sugar for running specific type of `GROUPING SETS`, where one column is removed from `GROUP BY` clause at each step. It is really useful for data with a clear hierarchy.
+
+```sql
+...
+group by
+    rollup (a, b)
+
+-- is equal to
+
+...
+group by
+    grouping set (
+        (a, b),
+        (a),
+        ()
+    )
+```
+
+`CUBE` is syntactic sugar for running specific type of `GROUPING SETS`, where you run `GROUP BY` for every possible combination of the columns.
+```sql
+...
+group by
+    cube (a, b)
+
+-- is equal to
+
+...
+group by
+    grouping set (
+        (a, b),
+        (a),
+        (b),
+        ()
+    )
+```
 
 <!-- /////////////////// -->
 <!-- COMMON TABLE EXPRESSION (CTE) -->
