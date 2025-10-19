@@ -136,20 +136,18 @@ SELECT title, author FROM books;
 ```
 and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse.
+Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate function, or a scalar function call. You can also rename any of them with an alias for clarity or reuse.
 
-For example, to mix base columns with literals, expressions, and aggregates, you might summarize books by genre:
+For example, the following query mixes every listed source except an aggregate function.
 ```sql
 SELECT
-    genre,
-    COUNT(*) AS total_titles,
-    MAX(published_year) AS newest_publication_year,
-    COUNT(*) = 1 AS is_single_title_genre,
-    'library dataset' AS source_label
-FROM books
-GROUP BY genre;
+    title,
+    'library dataset' AS dataset_label,
+    published_year + 1 AS next_publication_year,
+    upper(author) AS author_upper
+FROM
+    books
 ```
-This yields one row per genre such as `Literature | 4 | 1880 | false | library dataset`.
 
 Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
 
@@ -157,17 +155,19 @@ Suppose you want to surface who currently has each book and render a friendly st
 ```sql
 SELECT
     b.title,
-    COALESCE(u.full_name, 'Available') AS current_holder,
+    upper(b.genre) AS genre_uppercase,
+    replace(b.author, ' ', '_') AS author_slug,
+    COALESCE(CAST(b.checked_out_by AS TEXT), 'Available') AS current_holder_id,
     CASE
-        WHEN u.membership_tier = 'STUDENT' THEN 'student checkout'
-        WHEN u.full_name IS NULL THEN 'on shelf'
-        ELSE lower(u.membership_tier) || ' checkout'
-    END AS circulation_status
+        WHEN b.checked_out_by IS NULL THEN 'on shelf'
+        ELSE 'checked out'
+    END AS circulation_status,
+    (make_date(b.published_year, 1, 1) + INTERVAL '150 years')::date AS public_domain_anniversary,
+    to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
 FROM books b
-    LEFT JOIN users u ON u.user_id = b.checked_out_by
 ORDER BY b.title;
 ```
-The result table now contains transformed values like `The Cherry Orchard | Alice Smith | standard checkout`.
+The result table now contains transformed values like `The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01`.
 
 <!-- /////////////////// -->
 <!-- FROM -->
