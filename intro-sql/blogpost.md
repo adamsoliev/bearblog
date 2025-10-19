@@ -85,7 +85,7 @@ SELECT title, author FROM books;
 ```
 and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a table, a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse.
+Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate, or a function call. You can also rename any of them with an alias for clarity or reuse.
 
 Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
 
@@ -94,7 +94,7 @@ Modern databases make it easy to perform substantial data transformation right i
 <!-- /////////////////// -->
 ### FROM
 
-The `FROM` clause defines *where* your data comes from. Each source can be a base table (created with `CREATE TABLE`), a derived table (a subquery like `(SELECT …)`), a join, or a combination of these.
+The `FROM` clause defines *where* your data comes from. Each source can be a base table, a derived table (created with a subquery like `(SELECT …)`), a join, or a combination of these.
 
 You can also specify *how* these sources relate to each other using a join condition — written with `ON`, or its shorthand forms `USING` and `NATURAL`:
 
@@ -165,11 +165,11 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 <!-- /////////////////// -->
 ### GROUP BY
 
-`GROUP BY` groups rows that have the same values in one or more specified columns into summary rows. It is almost always used alongside of aggregate functions, such as `COUNT()`, `SUM()`, `AVG()`, which operate on the values within each group, returning a single summary value for that group. Additionally, it can be used to eliminate redundancy, which can also be achieved using the `DISTINCT` clause.
+`GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always used alongside aggregate functions, such as `COUNT()`, `SUM()`, `AVG()`. These functions perform a calculation on each group, returning a single value.
 
-`HAVING` filters the result group set to only those groups that meet the condition. Recall that `WHERE` is a filter for each row while `HAVING` is a filter for each group.
+`HAVING` checks the summary row of every group against the condition: if it evaluates to true, the summary row is kept; if false or null, it's discarded. In other words, `HAVING` is a group-level filter (recall that `WHERE` is a row-level one).
 
-`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel in one go.
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel.
 ```sql
 ...
 group by
@@ -189,7 +189,7 @@ group by
     )
 ```
 
-`ROLLUP` is syntactic sugar for running specific type of `GROUPING SETS`, where one column is removed from `GROUP BY` clause at each step. It is really useful for data with a clear hierarchy.
+`ROLLUP` is syntactic sugar for running a specific type of `GROUPING SETS`, where one column is removed from `GROUP BY` clause at each step. It is useful for data with a clear hierarchy.
 
 ```sql
 ...
@@ -207,7 +207,7 @@ group by
     )
 ```
 
-`CUBE` is syntactic sugar for running specific type of `GROUPING SETS`, where you run `GROUP BY` for every possible combination of the columns.
+`CUBE` is syntactic sugar for running a specific type of `GROUPING SETS`, where you run `GROUP BY` for every possible combination of the columns.
 ```sql
 ...
 group by
