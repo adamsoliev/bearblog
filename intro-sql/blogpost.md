@@ -136,9 +136,7 @@ SELECT title, author FROM books;
 ```
 and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate function, or a scalar function call. You can also rename any of them with an alias for clarity or reuse.
-
-For example, the following query mixes every listed source except an aggregate function.
+Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate function, or a scalar function call. You can also rename any of them with an alias for clarity or reuse. For example, this query combines everything from the list except an aggregate:
 ```sql
 SELECT
     title,
@@ -149,9 +147,7 @@ FROM
     books;
 ```
 
-Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code.
-
-Suppose you want to surface who currently has each book and render a friendly status in one step:
+Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code. Suppose you want to surface who currently has each book and render a status with some additional columns in one step:
 ```sql
 SELECT
     b.title,
@@ -164,7 +160,7 @@ SELECT
     END AS circulation_status,
     (make_date(b.published_year, 1, 1) + INTERVAL '150 years')::date AS public_domain_anniversary,
     to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
-FROM books b;
+FROM books AS b;
 ```
 The result table now contains transformed values like `The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01`.
 
@@ -189,6 +185,7 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `LEFT JOIN` keeps all rows from the left table and fills-in columns from the right table only when you have a match, otherwise using NULL as the columns' value.
 * `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
 * `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
+* `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
 <!-- FIXME -->
@@ -198,6 +195,42 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.
 * `USING` is syntactic sugar for equality joins: `USING(a,b)` expands to `ON left_table.a = right_table.a AND left_table.b = right_table.b`.
 * `NATURAL` is syntactic sugar for a `USING` clause over all columns with the same name in both tables. If no such columns exist, it behaves like `ON TRUE`.
+
+Here's a basic `ON` example that pairs each checked-out book with the reader who has it:
+
+```sql
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b
+    JOIN users AS u
+    ON u.user_id = b.checked_out_by;
+```
+
+If both inputs expose the same join column name, you can switch to `USING`:
+
+```sql
+SELECT
+    catalog.title,
+    active_loans.checked_out_by
+FROM
+    (SELECT book_id, title FROM books) AS catalog
+    JOIN
+    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans
+    USING (book_id);
+```
+
+And the same query written with `NATURAL JOIN`:
+
+```sql
+SELECT
+    catalog.title,
+    active_loans.checked_out_by
+FROM
+    (SELECT book_id, title FROM books) AS catalog
+    NATURAL JOIN
+    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans;
+```
 
 <!-- /////////////////// -->
 <!-- WHERE -->
