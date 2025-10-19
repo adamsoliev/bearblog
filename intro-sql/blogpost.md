@@ -9,7 +9,7 @@
   * [ORDER BY](#order-by)
   * [LIMIT AND OFFSET](#limit-and-offset)
   * [GROUP BY](#group-by)
-  * [COMMON TABLE EXPRESSION](#common-table-expression)
+  * [COMMON TABLE EXPRESSIONS](#common-table-expressions)
 * [Advanced queries walkthrough](#advanced-queries-walkthrough)
 * [Optimizations](#optimizations)
 * [Conclusion](#conclusion)
@@ -128,7 +128,7 @@ VALUES
 <!-- /////////////////// -->
 <!-- SELECT -->
 <!-- /////////////////// -->
-### SELECT
+### <a id="select" href="#table-of-contents">SELECT</a>
 
 Most people think of `SELECT` as “picking columns” from a table — and at the surface, that’s true. You write
 ```sql
@@ -167,7 +167,7 @@ The result table now contains transformed values like `The Cherry Orchard | DRAM
 <!-- /////////////////// -->
 <!-- FROM -->
 <!-- /////////////////// -->
-### FROM
+### <a id="from" href="#table-of-contents">FROM</a>
 
 The `FROM` clause defines *where* your data comes from. Each source can be a base table, a derived table (created with a subquery like `(SELECT …)`), a join, or a combination of these.
 
@@ -258,7 +258,7 @@ FROM
 <!-- /////////////////// -->
 <!-- WHERE -->
 <!-- /////////////////// -->
-### WHERE
+### <a id="where" href="#table-of-contents">WHERE</a>
 
 `WHERE` clause filters rows produced by the `FROM` clause. Each row is checked against the condition: if it evaluates to true, the row is kept; if false or null, it's discarded.
 
@@ -266,12 +266,9 @@ You can combine conditions with `AND` and `OR`. `AND` allows short-circuit evalu
 
 #### Subquery expressions
 * `EXISTS` checks whether the argument subquery returns any rows (ignoring the contents of those rows). It returns true if the result set has at least one row.
-* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.
-
-If the expression consists of multiple columns, the subquery must return exactly as many columns.
-
-Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering).
-
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.  <br><br>
+If the expression consists of multiple columns, the subquery must return exactly as many columns.  <br><br>
+Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering).<br><br>
 * `ANY/SOME` allow using other comparison operators beyond `=` – such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
 * `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
 
@@ -280,7 +277,7 @@ Keep filters simple so that the database can match them against indexes and avoi
 <!-- /////////////////// -->
 <!-- ORDER BY -->
 <!-- /////////////////// -->
-### ORDER BY
+### <a id="order-by" href="#table-of-contents">ORDER BY</a>
 
 `ORDER BY` defines the order in which the final result set is returned. It can sort by one or multiple columns, or by expressions derived from them. The sort direction is controlled with `ASC` (ascending, the default) or `DESC` (descending).
 
@@ -291,7 +288,8 @@ Keep filters simple so that the database can match them against indexes and avoi
 <!-- /////////////////// -->
 <!-- LIMIT and OFFSET -->
 <!-- /////////////////// -->
-### LIMIT and OFFSET
+### <a id="limit-and-offset" href="#table-of-contents">LIMIT and OFFSET</a>
+
 `LIMIT` restricts the number of rows returned by a query, while `OFFSET` skips a given number of rows before starting to return results. These two are often paired with `ORDER BY` to guarantee a consistent and predictable order of results.
 
 Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
@@ -301,7 +299,7 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 <!-- /////////////////// -->
 <!-- GROUP BY -->
 <!-- /////////////////// -->
-### GROUP BY
+### <a id="group-by" href="#table-of-contents">GROUP BY</a>
 
 `GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always used alongside aggregate functions, such as `COUNT()`, `SUM()`, `AVG()`. These functions perform a calculation on each group, returning a single value.
 
@@ -366,7 +364,7 @@ group by
 <!-- /////////////////// -->
 <!-- COMMON TABLE EXPRESSION (CTE) -->
 <!-- /////////////////// -->
-### COMMON TABLE EXPRESSION
+### <a id="common-table-expressions" href="#table-of-contents">COMMON TABLE EXPRESSIONS</a>
 
 `COMMON TABLE EXPRESSIONS or CTEs` allows you to define a named subquery and run it as a prologue, and then refer to its result set like any other relation in `FROM` of the main query.
 
