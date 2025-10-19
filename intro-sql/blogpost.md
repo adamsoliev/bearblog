@@ -68,6 +68,61 @@ SQL covers several kinds of tasks, often grouped into four main categories:
 
 In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies.
 
+The examples below rely on a library lending dataset (`users`, `library`, `books`). To keep the narrative approachable, the inserts load six illustrative rows per table; clone and extend them later if you want larger test volumes.
+
+```sql
+CREATE TABLE users (
+    user_id INTEGER PRIMARY KEY,
+    full_name TEXT NOT NULL,
+    joined_on DATE NOT NULL,
+    membership_tier TEXT NOT NULL
+);
+
+CREATE TABLE library (
+    library_id INTEGER PRIMARY KEY,
+    branch_name TEXT NOT NULL,
+    city TEXT NOT NULL,
+    opened_on DATE NOT NULL
+);
+
+CREATE TABLE books (
+    book_id INTEGER PRIMARY KEY,
+    library_id INTEGER NOT NULL REFERENCES library (library_id),
+    title TEXT NOT NULL,
+    author TEXT NOT NULL,
+    genre TEXT NOT NULL,
+    published_year INTEGER NOT NULL,
+    checked_out_by INTEGER REFERENCES users (user_id)
+);
+
+INSERT INTO users (user_id, full_name, joined_on, membership_tier)
+VALUES
+    (1, 'Alice Smith', '2022-01-04', 'STANDARD'),
+    (2, 'Brianna Diaz', '2022-03-12', 'PREMIUM'),
+    (3, 'Chandra Iyer', '2022-07-19', 'PREMIUM'),
+    (4, 'Dmitri Volkov', '2023-02-08', 'STANDARD'),
+    (5, 'Evelyn Harper', '2023-05-23', 'STUDENT'),
+    (6, 'Farah Nasser', '2023-09-14', 'STANDARD');
+
+INSERT INTO library (library_id, branch_name, city, opened_on)
+VALUES
+    (1, 'Central Library', 'Boston', '2010-01-15'),
+    (2, 'Riverside Branch', 'Portland', '2012-06-20'),
+    (3, 'Innovation Hub', 'Austin', '2015-03-30'),
+    (4, 'Harbor Reading Room', 'Seattle', '2016-11-05'),
+    (5, 'Southside Learning Center', 'Chicago', '2018-04-18'),
+    (6, 'Uptown Collection', 'Denver', '2019-09-09');
+
+INSERT INTO books (book_id, library_id, title, author, genre, published_year, checked_out_by)
+VALUES
+    (1, 1, 'War and Peace', 'Leo Tolstoy', 'Literature', 1869, 2),
+    (2, 1, 'Anna Karenina', 'Leo Tolstoy', 'Literature', 1877, NULL),
+    (3, 2, 'Crime and Punishment', 'Fyodor Dostoevsky', 'Literature', 1866, 4),
+    (4, 3, 'The Brothers Karamazov', 'Fyodor Dostoevsky', 'Literature', 1880, NULL),
+    (5, 5, 'The Cherry Orchard', 'Anton Chekhov', 'Drama', 1904, 1),
+    (6, 6, 'One Day in the Life of Ivan Denisovich', 'Alexander Solzhenitsyn', 'Historical Fiction', 1962, 3);
+```
+
 [note that the order of evaluation talked below pertains to logical order; dbs are free to execute them in any order as long as the final result matches the logical view result]()
 
 <!-- /////////////////// -->
