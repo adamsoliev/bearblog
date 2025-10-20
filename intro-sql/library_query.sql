@@ -138,6 +138,22 @@ from books
 where genre='Literature' AND published_year=1869;
 
 
+SELECT u.full_name
+FROM users AS u
+WHERE EXISTS (
+    SELECT 1
+    FROM books AS b
+    WHERE b.checked_out_by = u.user_id
+);
+
+SELECT title
+FROM books
+where library_id IN (
+    SELECT library_id
+    FROM library
+    WHERE city='Boston'
+);
+
 SELECT
     b.title
 FROM books AS b
@@ -158,3 +174,12 @@ WHERE u.user_id NOT IN (
     FROM books AS b
 );
 
+SELECT
+    b.title
+FROM books AS b
+WHERE b.published_year >= ALL (
+    SELECT
+        comparison.published_year
+    FROM books AS comparison
+    WHERE comparison.genre = 'Literature'
+);

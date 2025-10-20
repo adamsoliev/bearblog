@@ -272,8 +272,27 @@ WHERE genre='Literature' AND published_year=1869;
 ```
 
 #### Subquery expressions
-* `EXISTS` checks whether the argument subquery returns any rows (ignoring the contents of those rows). It returns true if the result set has at least one row.
-* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.   <br><br> 
+* `EXISTS` checks whether a subquery returns at least one row for the current row of the outer query.
+    ```sql
+    SELECT u.full_name
+    FROM users AS u
+    WHERE EXISTS (
+        SELECT 1
+        FROM books AS b
+        WHERE b.checked_out_by = u.user_id
+    );
+    ```
+    `SELECT 1` is a common placeholder because `EXISTS` ignores the actual columns returned, only taking into account if at least one row was returned or not.
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.
+  ```sql
+  SELECT title
+  FROM books
+  where library_id IN (
+      SELECT library_id
+      FROM library
+      WHERE city='Boston'
+  );
+  ```
   If the expression consists of multiple columns, the subquery must return exactly as many columns. For example, the following query results in a `subquery has too few columns` error. 
   ```sql
   SELECT
@@ -304,6 +323,18 @@ WHERE genre='Literature' AND published_year=1869;
   Because `books.checked_out_by` includes `NULL`, this query returns zero rows—even though you would expect users without an active checkout to appear.
 * `ANY/SOME` allow using other comparison operators beyond `=`, such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
 * `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
+  ```sql
+  SELECT
+      b.title
+  FROM books AS b
+  WHERE b.published_year >= ALL (
+      SELECT
+          comparison.published_year
+      FROM books AS comparison
+      WHERE comparison.genre = 'Literature'
+  );
+  ```
+  This returns the most recently published titles, because `b.published_year` must be greater than or equal to every year produced by the subquery.
 
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
 
