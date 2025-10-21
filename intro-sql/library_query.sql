@@ -187,7 +187,7 @@ WHERE b.published_year >= ALL (
 -- order by
 SELECT title, author, published_year, checked_out_by
 FROM books
-ORDER BY 
+ORDER BY
     checked_out_by IS NULL,
     published_year DESC;
 
@@ -199,25 +199,25 @@ ORDER BY checked_out_by NULLS FIRST;
 
 -- group by
 
-SELECT genre, COUNT(*) 
+SELECT genre, COUNT(*)
 FROM books
 GROUP BY genre;
 
 
-SELECT author, COUNT(*) 
+SELECT author, COUNT(*)
 FROM books
 GROUP BY author;
 
 
-SELECT genre, COUNT(*) 
+SELECT genre, COUNT(*)
 FROM books
 GROUP BY genre
 HAVING COUNT(*) > 2;
 
 
-SELECT genre, author, COUNT(*) 
+SELECT genre, author, COUNT(*)
 FROM books
-GROUP BY 
+GROUP BY
     GROUPING SETS (
         genre,
         author
@@ -232,3 +232,46 @@ FROM books AS b
 JOIN library AS l ON l.library_id = b.library_id
 GROUP BY ROLLUP (l.branch_name, b.genre);
 
+
+-- cte
+
+WITH hold_premium as (
+    SELECT full_name, title, author, published_year
+    FROM users
+        JOIN books ON checked_out_by = user_id
+    WHERE membership_tier = 'PREMIUM'
+)
+SELECT full_name as holder, title
+FROM hold_premium
+WHERE published_year < 1900;
+
+
+WITH RECURSIVE branch_openings AS (
+      SELECT
+          l.library_id,
+          l.branch_name,
+          l.city,
+          l.opened_on,
+          1 AS open_order
+      FROM library AS l
+      WHERE l.opened_on = (SELECT MIN(opened_on) FROM library)
+
+      UNION ALL
+
+      SELECT
+          next_branch.library_id,
+          next_branch.branch_name,
+          next_branch.city,
+          next_branch.opened_on,
+          bo.open_order + 1
+      FROM branch_openings AS bo
+      JOIN library AS next_branch
+        ON next_branch.opened_on = (
+           SELECT MIN(opened_on)
+           FROM library
+           WHERE opened_on > bo.opened_on
+        )
+  )
+  SELECT branch_name, city, opened_on, open_order
+  FROM branch_openings
+  ORDER BY open_order;

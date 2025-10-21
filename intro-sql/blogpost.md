@@ -474,7 +474,19 @@ GROUP BY CUBE (l.branch_name, b.genre);
 <!-- /////////////////// -->
 ### <a id="common-table-expressions" href="#table-of-contents">COMMON TABLE EXPRESSIONS</a>
 
-`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`.
+`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`. So their value comes from breaking down complicated queries into simpler – or easier to follow – parts.
+
+```sql
+WITH hold_premium as (
+    SELECT full_name, title, author, published_year
+    FROM users
+        JOIN books ON checked_out_by = user_id
+    WHERE membership_tier = 'PREMIUM'
+)
+SELECT full_name as holder, title
+FROM hold_premium
+WHERE published_year < 1900;
+```
 
 The optional `RECURSIVE` keyword turns a CTE from a mere syntactic convenience into a feature where the CTE query can refer to its own output. A recursive CTE has the general form:
 ```
@@ -484,6 +496,41 @@ recursive term
 ```
 
 Only the recursive term may reference the CTE itself. The first term acts as the base case, and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met.
+
+In a recursive CTE, the UNION or UNION ALL operator combines rows vertically, stacking the initial anchor query results with the iterative results from the recursive member. A good mental model is an iterative loop: the anchor query runs once, its results are used by the recursive query, and those new results are added to the set for the next iteration until no new rows are returned. UNION ALL is faster because it simply concatenates all rows, while UNION performs an additional, costly step to remove duplicates.
+
+Here is the query that uses the library table to walk through branches in the order they opened:
+```sql
+WITH RECURSIVE branch_openings AS (
+      SELECT
+          l.library_id,
+          l.branch_name,
+          l.city,
+          l.opened_on,
+          1 AS open_order
+      FROM library AS l
+      WHERE l.opened_on = (SELECT MIN(opened_on) FROM library)
+
+      UNION ALL
+
+      SELECT
+          next_branch.library_id,
+          next_branch.branch_name,
+          next_branch.city,
+          next_branch.opened_on,
+          bo.open_order + 1
+      FROM branch_openings AS bo
+      JOIN library AS next_branch
+        ON next_branch.opened_on = (
+           SELECT MIN(opened_on)
+           FROM library
+           WHERE opened_on > bo.opened_on
+        )
+  )
+SELECT branch_name, city, opened_on, open_order
+FROM branch_openings
+ORDER BY open_order;
+```
 
 Recursive CTEs are most often used to work with hierarchical or graph-like data.
 
