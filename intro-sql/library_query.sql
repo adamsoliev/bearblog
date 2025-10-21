@@ -183,3 +183,52 @@ WHERE b.published_year >= ALL (
     FROM books AS comparison
     WHERE comparison.genre = 'Literature'
 );
+
+-- order by
+SELECT title, author, published_year, checked_out_by
+FROM books
+ORDER BY 
+    checked_out_by IS NULL,
+    published_year DESC;
+
+
+SELECT title, author, checked_out_by
+FROM books
+ORDER BY checked_out_by NULLS FIRST;
+
+
+-- group by
+
+SELECT genre, COUNT(*) 
+FROM books
+GROUP BY genre;
+
+
+SELECT author, COUNT(*) 
+FROM books
+GROUP BY author;
+
+
+SELECT genre, COUNT(*) 
+FROM books
+GROUP BY genre
+HAVING COUNT(*) > 2;
+
+
+SELECT genre, author, COUNT(*) 
+FROM books
+GROUP BY 
+    GROUPING SETS (
+        genre,
+        author
+    );
+
+
+SELECT
+    l.branch_name,
+    b.genre,
+    COUNT(*) AS book_count
+FROM books AS b
+JOIN library AS l ON l.library_id = b.library_id
+GROUP BY ROLLUP (l.branch_name, b.genre);
+

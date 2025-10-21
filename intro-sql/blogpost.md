@@ -10,6 +10,7 @@
   * [LIMIT AND OFFSET](#limit-and-offset)
   * [GROUP BY](#group-by)
   * [COMMON TABLE EXPRESSIONS](#common-table-expressions)
+  * [NULL PITFALLS](#null-pitfalls)
 * [Advanced queries walkthrough](#advanced-queries-walkthrough)
 * [Optimizations](#optimizations)
 * [Conclusion](#conclusion)
@@ -283,7 +284,7 @@ WHERE genre='Literature' AND published_year=1869;
     );
     ```
     `SELECT 1` is a common placeholder because `EXISTS` ignores the actual columns returned, only taking into account if at least one row was returned or not.
-* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery result. It returns true/false, respectively, if at least one equal subquery row is found.
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery single-column result. It returns true/false, respectively, if at least one equal subquery row is found.
   ```sql
   SELECT title
   FROM books
@@ -345,7 +346,20 @@ Keep filters simple so that the database can match them against indexes and avoi
 
 `ORDER BY` defines the order in which the final result set is returned. It can sort by one or multiple columns, or by expressions derived from them. The sort direction is controlled with `ASC` (ascending, the default) or `DESC` (descending).
 
+```sql
+SELECT title, author, published_year, checked_out_by
+FROM books
+ORDER BY 
+    checked_out_by IS NULL,
+    published_year DESC;
+```
+
 `NULLS FIRST` and `NULLS LAST` specify where `NULL` values appear in the order. By default, most databases treat `NULL` as larger than any non-null value — so they appear last when sorting ascending.
+```sql
+SELECT title, author, checked_out_by
+FROM books
+ORDER BY checked_out_by NULLS FIRST;
+```
 
 `ORDER BY` can also be used after set operations like `UNION`, `INTERSECT`, or `EXCEPT`, but in those cases it can only reference output column names or their positional numbers (not arbitrary expressions).
 
@@ -365,64 +379,94 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 <!-- /////////////////// -->
 ### <a id="group-by" href="#table-of-contents">GROUP BY</a>
 
-`GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always used alongside aggregate functions, such as `COUNT()`, `SUM()`, `AVG()`. These functions perform a calculation on each group, returning a single value.
-
-`HAVING` checks the summary row of every group against the condition: if it evaluates to true, the summary row is kept; if false or null, it's discarded. In other words, `HAVING` is a group-level filter (recall that `WHERE` is a row-level one).
-
-`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel.
+`GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always paired with aggregates such as `COUNT()` and `AVG()`, which compute one result per group. On the library lending dataset, it answers questions like “How many books are there per genre or author?”:
 ```sql
-...
-group by
-    a
+-- count per genre
+SELECT genre, COUNT(*) 
+FROM books
+GROUP BY genre;
 
-...
-group by
-    b
-
--- two accomplished in one
-
-...
-group by
-    grouping set (
-        (a),
-        (b)
-    )
+-- count per author
+SELECT author, COUNT(*) 
+FROM books
+GROUP BY author;
 ```
 
-`ROLLUP` is syntactic sugar for running a specific type of `GROUPING SETS`, where one column is removed from `GROUP BY` clause at each step. It is useful for data with a clear hierarchy.
+`HAVING` checks the summary row of every group against the condition: if it evaluates to true, the summary row is kept; if false or null, it's discarded. In other words, `HAVING` is a group-level filter (recall that `WHERE` is a row-level one).
+```sql
+SELECT genre, COUNT(*) 
+FROM books
+GROUP BY genre
+HAVING COUNT(*) > 2;
+```
 
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. For example, the above two questions can be answered in one query:
+```sql
+SELECT genre, author, COUNT(*) 
+FROM books
+GROUP BY 
+    GROUPING SETS (
+        genre,
+        author
+    );
+```
+
+`ROLLUP` is syntactic sugar for running a specific type of `GROUPING SETS`, where one column is removed at each step.
 ```sql
 ...
-group by
-    rollup (a, b)
+GROUP BY
+    ROLLUP (a, b)
 
 -- is equal to
 
 ...
-group by
-    grouping set (
+GROUP BY
+    GROUPING SET (
         (a, b),
         (a),
         ()
     )
 ```
 
-`CUBE` is syntactic sugar for running a specific type of `GROUPING SETS`, where you run `GROUP BY` for every possible combination of the columns.
+It is useful for hierarchical summaries like branch → genre → total.
+```sql
+SELECT
+    l.branch_name,
+    b.genre,
+    COUNT(*) AS book_count
+FROM books AS b
+    JOIN library AS l ON l.library_id = b.library_id
+GROUP BY ROLLUP (l.branch_name, b.genre);
+```
+This returns genre totals per branch, a branch subtotal (with `genre` set to `NULL`), and a final grand total.
+
+`CUBE` is syntactic sugar for running a specific type of `GROUPING SETS`, where you enumerate every combination of the listed columns.
 ```sql
 ...
-group by
-    cube (a, b)
+GROUP BY
+    CUBE (a, b);
 
 -- is equal to
 
 ...
-group by
-    grouping set (
+GROUP BY
+    GROUPING SET (
         (a, b),
         (a),
         (b),
         ()
-    )
+    );
+```
+
+This query includes summary of every combination: branch+genre, branch-only, genre-only, and the overall total.
+```sql
+SELECT
+    l.branch_name,
+    b.genre,
+    COUNT(*) AS book_count
+FROM books AS b
+    JOIN library AS l ON l.library_id = b.library_id
+GROUP BY CUBE (l.branch_name, b.genre);
 ```
 
 <!-- /////////////////// -->
@@ -443,9 +487,11 @@ Only the recursive term may reference the CTE itself. The first term acts as the
 
 Recursive CTEs are most often used to work with hierarchical or graph-like data.
 
-<!-- FIXME -->
-[null pitfalls]()
-```
+<!-- /////////////////// -->
+<!-- NULL -->
+<!-- /////////////////// -->
+### <a id="null-pitfalls" href="#table-of-contents">NULL PITFALLS</a>
+
 null is the absence of a value;
 
 When working with null, you should remember:
@@ -455,7 +501,7 @@ When working with null, you should remember:
 To test whether an expression is null, you need to use the is null operator
 To test whether value is in range, you need to test that column to null as well
 In aggregate functions like `COUNT`, using `*` means null is also counted
-```
+
 ---
 
 # <a id="advanced-queries-walkthrough" href="#table-of-contents">Advanced queries walkthrough</a>
