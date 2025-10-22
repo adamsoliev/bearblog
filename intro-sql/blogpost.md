@@ -25,9 +25,9 @@ I wrote this mostly to clarify my own understanding. Along the way, I cut what�
 
 # <a id="relational-model" href="#table-of-contents">Relational model</a>
 
-The relational model is built on a simple but powerful idea borrowed directly from mathematics: a relation is just a set of tuples.
+The relational model is built on a simple idea borrowed from mathematics: a relation is just a set of tuples.
 
-Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation $R$ on these sets is any set of $n$-tuples where the first component comes from $S1$, the second from $S2$, and so on. In database terms, a relation is a **table**, a tuple is a **row**, and the sets $S1$, $S2$, $\dots$, $Sn$ define the permissible values for each column.
+Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation $R$ on these sets is any set of $n$-tuples where each tuple’s first value comes from $S1$, its second from $S2$, and so on. In database terms, a relation is a **table**, a tuple is a **row**, and the sets $S1$, $S2$, $\dots$, $Sn$ define the permissible values for each column.
 
 For example, imagine you have three sets:
 
@@ -35,7 +35,7 @@ For example, imagine you have three sets:
 * **$S_2 = \{"A", "B", "C", "D", "E"\}$** (a set of names)
 * **$S_3 = \{2023$-$10$-$02, 2022$-$07$-$11, 2025$-$01$-$12, 2019$-$03$-$27, 2026$-$12$-$03\}$** (a set of dates)
 
-A possible relation $R$ on these three sets could be:
+A possible table $R$ on these three sets could be:
 
 | ID | Name | Date |
 |---|---|---|
@@ -43,18 +43,15 @@ A possible relation $R$ on these three sets could be:
 | 75 | "C" | 2022-07-11 |
 | 32 | "E" | 2019-03-27 |
 
-Note $R$ is a named collection of three rows. Each row has the same set of named columns (`ID`, `Name`, `Date`), and each column is of a specific data type. Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
+Here, $R$ has three rows – each consisting of the same columns (`ID`, `Name`, `Date`). Each column is of a specific data type (`INTEGER`, `TEXT`, `DATE`). Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
 
 To connect information across tables, the relational model relies on 'key' columns:
-* A **primary key** uniquely identifies each row within a table (e.g., ID in the relation $R$).
-* A **foreign key** creates a logical link to a primary key in another table, allowing data in one table to reference data in another.
+* a **primary key** uniquely identifies each row within a table (e.g., ID in the relation $R$).
+* a **foreign key** creates a logical link to a primary key in another table, allowing data in one table to reference data in another.
 
-This precise definition gives the relational model a solid theoretical foundation, ensuring clear, unambiguous concepts and avoiding ad-hoc exceptions. As a result, communication among users, developers, and researchers is far more consistent than in earlier, less formal database approaches.
-
-In practice, the relational model deliberately stops short of access method and storage details, focusing on the logical structure of data. This separation has several consequences:
-
-* Users can write applications against the logical model without being tied to how data is accessed and physically arranged.
-* DBMS builders can innovate on access methods and storage to improve performance without breaking user programs.
+With this solid theoretical foundation and some practical departures from pure theory, the relational model achieved the right abstraction that enabled two defining properties in database systems:
+* **declarative querying**: users specify what data they want, not how to retrieve it.
+* **data independence**: applications describe data logically, while the database decides how to store and access it.
 
 # <a id="relational-algebra-and-calculus" href="#table-of-contents">Relational algebra and calculus</a>
 Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL that we know today is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
