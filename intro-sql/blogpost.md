@@ -269,8 +269,8 @@ WHERE genre='Literature' AND published_year=1869;
         WHERE b.checked_out_by = u.user_id
     );
     ```
-    `SELECT 1` is a common placeholder because `EXISTS` ignores the actual columns returned, only taking into account if at least one row was returned or not.
-* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery single-column result. It returns true/false, respectively, if at least one equal subquery row is found.
+    `SELECT 1` is a common placeholder because `EXISTS` only cares about the existence of a row, not the data within it.
+* `IN`/`NOT IN` evaluate the expression and compare it to each row of the subquery single-column result. They return true/false, respectively, if at least one equal subquery row is found.
   ```sql
   SELECT title
   FROM books
@@ -285,8 +285,8 @@ WHERE genre='Literature' AND published_year=1869;
   SELECT
       b.title
   FROM books AS b
-  WHERE (b.library_id, b.genre, b.published_year) IN (
-      SELECT
+  WHERE (b.library_id, b.genre, b.published_year) IN (  -- 3 expected
+      SELECT                                            -- 2 returned 
           l.library_id,
           'Literature' AS required_genre
       FROM library AS l
@@ -297,33 +297,36 @@ WHERE genre='Literature' AND published_year=1869;
   Be careful about `NOT IN` with `NULL` because if the subquery result contains `NULL`, `NOT IN` evaluates to UNKNOWN (so effectively false for filtering). For instance:
 
   ```sql
-  SELECT
-      u.full_name
-  FROM users AS u
-  WHERE u.user_id NOT IN (
-      SELECT
-          b.checked_out_by
-      FROM books AS b
-  );
+  SELECT 1 
+  WHERE 5 NOT IN (1, 2, 3, NULL); 
   ```
-
-  Because `books.checked_out_by` includes `NULL`, this query returns zero rows—even though you would expect users without an active checkout to appear.
+  Because the result set includes `NULL`, this query returns zero rows even though you expect to get `1` back.
 * `ANY/SOME` allow using other comparison operators beyond `=`, such as `<>`, `>`, `<`, `>=`, `<=`. Recall that `IN` implicitly performs an `=` comparison.
-* `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
   ```sql
   SELECT
-      b.title
+      b.title, b.published_year
   FROM books AS b
-  WHERE b.published_year >= ALL (
+  WHERE b.published_year > ANY (
       SELECT
           comparison.published_year
       FROM books AS comparison
-      WHERE comparison.genre = 'Literature'
-  );
+      WHERE comparison.author = 'Fyodor Dostoevsky'
+  );  
   ```
-  This returns the most recently published titles, because `b.published_year` must be greater than or equal to every year produced by the subquery.
-
-Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
+  This returns every book published after at least one of Dostoevsky's books.
+* `ALL` is the opposite of `ANY`: the condition must hold true for every value returned by the subquery.
+  ```sql
+  SELECT
+      b.title, b.published_year
+  FROM books AS b
+  WHERE b.published_year > ALL (
+      SELECT
+          comparison.published_year
+      FROM books AS comparison
+      WHERE comparison.author = 'Fyodor Dostoevsky'
+  );  
+  ```
+  Returns every book published after all of Dostoevsky’s books (i.e., later than his most recent one).
 
 <!-- /////////////////// -->
 <!-- ORDER BY -->
@@ -545,6 +548,9 @@ In aggregate functions like `COUNT`, using `*` means null is also counted
 </div>-->
 
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
+
+#### WHERE
+Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
 
 # <a id="conclusion" href="#table-of-contents">Conclusion</a>
 
