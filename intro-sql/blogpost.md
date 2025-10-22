@@ -194,7 +194,7 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 
 #### Old join syntax vs SQL92
 
-> This distinction still surfaces in older tutorials and legacy code, so it’s worth a look.
+> This distinction still surfaces in older tutorials and legacy code, so it’s worth being aware.
 
 Before SQL-92, joins were written by listing tables separated with commas and moving the join condition to the `WHERE` clause:
 
@@ -218,46 +218,25 @@ INNER JOIN users AS u
 ```
 
 #### Join conditions
-* `ON` defines how rows from the two tables are matched. The condition must evaluate to a boolean — much like a `WHERE` clause — but it applies before the join output is produced.
-* `USING` is syntactic sugar for equality joins: `USING(a,b)` expands to `ON left_table.a = right_table.a AND left_table.b = right_table.b`.
-* `NATURAL` is syntactic sugar for a `USING` clause over all columns with the same name in both tables. If no such columns exist, it behaves like `ON TRUE`.
-
-Here's a basic `ON` example that pairs each checked-out book with the reader who has it:
-
-```sql
-SELECT
-    b.title,
-    u.full_name
-FROM books AS b
-    JOIN users AS u
-    ON u.user_id = b.checked_out_by;
-```
-
-If both inputs expose the same join column name, you can switch to `USING`:
-
-```sql
-SELECT
-    catalog.title,
-    active_loans.checked_out_by
-FROM
-    (SELECT book_id, title FROM books) AS catalog
-    JOIN
-    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans
-    USING (book_id);
-```
-
-And the same query written with `NATURAL JOIN`:
-
-```sql
-SELECT
-    catalog.title,
-    active_loans.checked_out_by
-FROM
-    (SELECT book_id, title FROM books) AS catalog
-    NATURAL JOIN
-    (SELECT book_id, checked_out_by FROM books WHERE checked_out_by IS NOT NULL) AS active_loans;
-```
-
+* `ON` defines how rows from the two tables are matched and filtered. In contrast, `WHERE` (covered next) is also a filter, but it applies after the join output is produced. Here’s a basic `ON` example that pairs each checked-out book with its holder and displays those in the literature genre.
+  ```sql
+  SELECT *
+  FROM books AS b
+      JOIN library AS l ON b.library_id = l.library_id AND b.genre = 'Literature';  
+  ```
+* `USING` is syntactic sugar for equality joins: `USING(a,b)` expands to `ON left_table.a = right_table.a AND left_table.b = right_table.b`. For example,
+  ```sql
+  SELECT *
+  FROM books
+      JOIN library USING(library_id);
+  ```
+* `NATURAL` is syntactic sugar for `USING` over all columns with the same name in both tables. If no such columns exist, it behaves like `ON TRUE`, meaning every row pairs with every other (a Cartesian product). The `USING` example can also be written as:
+  ```sql
+  SELECT *
+  FROM books
+      NATURAL JOIN library;  
+  ```
+  
 <!-- /////////////////// -->
 <!-- WHERE -->
 <!-- /////////////////// -->
