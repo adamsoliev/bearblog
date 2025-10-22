@@ -54,7 +54,11 @@ With this solid theoretical foundation and some practical departures from pure t
 * **data independence**: applications describe data logically, while the database decides how to store and access it.
 
 # <a id="relational-algebra-and-calculus" href="#table-of-contents">Relational algebra and calculus</a>
-Simply put, relational algebra and calculus are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? Algebra provides a set of operators - SELECT, PROJECT - that transform relations step by step, like four basic operators (+, -, /, *) in arithmetic but with tables instead of numbers. Calculus, by contrast, describes the conditions rows must satisfy, without prescribing steps. SQL that we know today is the practical offspring of the relational model, inspired by both relational algebra and relational calculus. Yet SQL is not a strict disciple of either: it tolerates duplicates, NULLs, and ordering - features that stray from pure relational theory. It became the first successful language to operationalize Codd’s vision of separating “what” from “how”.
+Simply put, relational algebra (RA) and calculus (RC) are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? 
+
+RA provides a set of operators - `SELECT`, `PROJECT` and others - that transform relations step by step, much like +, -, /, * in arithmetic, except that they act on tables rather than numbers. RC, by contrast, describes the conditions rows must satisfy, without prescribing steps. 
+
+SQL was inspired by both RA and RC. Yet SQL is not a strict disciple of either: it allows duplicates rows, NULLs, and implicit ordering - features absent from the original theory. It became the first successful language to separate “what” and “how”.
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
