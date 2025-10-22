@@ -326,7 +326,7 @@ WHERE genre='Literature' AND published_year=1869;
       WHERE comparison.author = 'Fyodor Dostoevsky'
   );  
   ```
-  Returns every book published after all of Dostoevsky’s books (i.e., later than his most recent one).
+  This returns every book published after all of Dostoevsky’s books (i.e., later than his most recent one).
 
 <!-- /////////////////// -->
 <!-- ORDER BY -->
@@ -358,17 +358,19 @@ ORDER BY checked_out_by NULLS FIRST;
 ### <a id="limit-and-offset" href="#table-of-contents">LIMIT and OFFSET</a>
 
 `LIMIT` restricts the number of rows returned by a query, while `OFFSET` skips a given number of rows before starting to return results. These two are often paired with `ORDER BY` to guarantee a consistent and predictable order of results.
-
-Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
-
-A more efficient alternative is to use a top-N hint (recognized by most databases) for the initial set of results and then use `WHERE` based on specific key ranges for subsequent queries. This method, known as **keyset pagination**, allows the database to jump directly to the next page using indexed lookups.
+```sql
+SELECT title, author, published_year
+FROM books
+ORDER BY published_year DESC
+LIMIT 2;
+```
 
 <!-- /////////////////// -->
 <!-- GROUP BY -->
 <!-- /////////////////// -->
 ### <a id="group-by" href="#table-of-contents">GROUP BY</a>
 
-`GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always paired with aggregates such as `COUNT()` and `AVG()`, which compute one result per group. On the library lending dataset, it answers questions like “How many books are there per genre or author?”:
+`GROUP BY` takes rows with identical values in one or more columns and collapses them into a single summary row. It is almost always paired with aggregates, including `COUNT()` and `AVG()`, which compute one result per group. For example, to know how many books there are per genre or author, you could try:
 ```sql
 -- count per genre
 SELECT genre, COUNT(*) 
@@ -389,9 +391,9 @@ GROUP BY genre
 HAVING COUNT(*) > 2;
 ```
 
-`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. By using `GROUPING SETS`, you can combine various aggregations into a single query. The main advantage is that you have to read data only once while producing many different aggregation sets at the same time.
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. By using `GROUPING SETS`, you can combine various aggregations into a single query. The main advantage here is that you read data only once while producing many different aggregation sets at the same time.
 
-For example, the above two questions can be answered in one query:
+For example, to count the number of books per genre and author simultaneously, you could use:
 ```sql
 SELECT genre, author, COUNT(*) 
 FROM books
@@ -431,7 +433,7 @@ GROUP BY ROLLUP (l.branch_name, b.genre);
 ```
 This returns genre totals per branch, a branch subtotal (with `genre` set to `NULL`), and a final grand total.
 
-`CUBE` is syntactic sugar for running a specific type of `GROUPING SETS`, where you enumerate every combination of the listed columns.
+`CUBE` is syntactic sugar for running another type of `GROUPING SETS`, where you enumerate every combination of the listed columns.
 ```sql
 ...
 GROUP BY
@@ -551,6 +553,11 @@ In aggregate functions like `COUNT`, using `*` means null is also counted
 
 #### WHERE
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
+
+#### LIMIT AND OFFSET
+Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
+
+A more efficient alternative is to use a top-N hint (recognized by most databases) for the initial set of results and then use `WHERE` based on specific key ranges for subsequent queries. This method, known as **keyset pagination**, allows the database to jump directly to the next page using indexed lookups.
 
 # <a id="conclusion" href="#table-of-contents">Conclusion</a>
 
