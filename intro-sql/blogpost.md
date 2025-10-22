@@ -19,9 +19,9 @@
 ---
 
 # <a id="what-and-why" href="#table-of-contents">What and why</a>
-This is an introduction to SQL. Unlike the countless other intros, it quickly covers the core ideas from a database-theory perspective, then shifts to the user's point of view – walking through queries from basic to advanced. In the basic section, the emphasis is on understanding how SQL works – structure, syntax, and flow – before moving on to applying it to real business questions in the advanced section. It then shifts again, this time with a focus on SQL performance.
+This is my introduction to SQL. I start from the relational model — the theory SQL is built on — then shift to the user’s point of view, walking through queries from basic to advanced. In the basic section, I explain each clause using a simple query and how that clause fits into SQL’s logical flow. In the advanced section, I break down complex queries visually and step by step. The post ends with a look at SQL performance.
 
-This blogpost was written primarily for myself – to clarify what I understand about SQL. Along the way, I trimmed what’s easy to find elsewhere and kept what took effort to learn. If you have any feedback/thoughts, please reach out.
+I wrote this mostly to clarify my own understanding. Along the way, I cut what’s easy to find elsewhere and kept what took effort to learn. If you have thoughts or feedback, I’d love to hear them.
 
 # <a id="relational-model" href="#table-of-contents">Relational model</a>
 
@@ -400,7 +400,9 @@ GROUP BY genre
 HAVING COUNT(*) > 2;
 ```
 
-`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. For example, the above two questions can be answered in one query:
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. By using `GROUPING SETS`, you can combine various aggregations into a single query. The main advantage is that you have to read data only once while producing many different aggregation sets at the same time.
+
+For example, the above two questions can be answered in one query:
 ```sql
 SELECT genre, author, COUNT(*) 
 FROM books
