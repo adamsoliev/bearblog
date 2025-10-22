@@ -130,22 +130,23 @@ VALUES
 
 Most people think of `SELECT` as “picking columns” from a table — and at the surface, that’s true. You write
 ```sql
-SELECT title, author FROM books;
+SELECT title, author 
+FROM books;
 ```
 and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression, an aggregate function, or a scalar function call. You can also rename any of them with an alias for clarity or reuse. For example, this query combines everything from the list except an aggregate:
+Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression or an aggregate/scalar function. You can also rename any column using `AS` with an alias for clarity or reuse. For example, 
 ```sql
 SELECT
-    title,
-    'library dataset' AS dataset_label,
-    published_year + 1 AS next_publication_year,
-    upper(author) AS author_upper
+    title,                                              -- base column
+    'library dataset' AS dataset_label,                 -- literal value
+    published_year + 1 AS next_publication_year,        -- expression
+    upper(author) AS author_upper                       -- scalar function
 FROM
     books;
 ```
 
-Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code. Suppose you want to surface who currently has each book and render a status with some additional columns in one step:
+Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code. Suppose you want to surface who currently has each book and render a status with some additional info:
 ```sql
 SELECT
     b.title,
@@ -160,7 +161,12 @@ SELECT
     to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
 FROM books AS b;
 ```
-The result table now contains transformed values like `The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01`.
+
+The result table now contains transformed values like 
+| title | genre.. | autho.. | curre.. | circu.. | publi.. | publi.. |
+|-|-|-|-|-|-|-| 
+| The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01 |
+| ... | ... | ... | ... | ... | ... | ... |
 
 <!-- /////////////////// -->
 <!-- FROM -->
