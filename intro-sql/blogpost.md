@@ -467,7 +467,7 @@ GROUP BY CUBE (l.branch_name, b.genre);
 <!-- /////////////////// -->
 ### <a id="common-table-expressions" href="#table-of-contents">COMMON TABLE EXPRESSIONS</a>
 
-`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`. So their value comes from breaking down complicated queries into simpler – or easier to follow – parts.
+`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`. CTEs' value comes from breaking down complicated queries into simpler, and easier to follow, parts.
 
 ```sql
 WITH hold_premium as (
@@ -488,7 +488,7 @@ UNION or UNION ALL
 recursive term
 ```
 
-Only the recursive term may reference the CTE itself. The first term acts as the base case, and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met.
+The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. 
 
 In a recursive CTE, the UNION or UNION ALL operator combines rows vertically, stacking the initial anchor query results with the iterative results from the recursive member. A good mental model is an iterative loop: the anchor query runs once, its results are used by the recursive query, and those new results are added to the set for the next iteration until no new rows are returned. UNION ALL is faster because it simply concatenates all rows, while UNION performs an additional, costly step to remove duplicates.
 
