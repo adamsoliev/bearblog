@@ -10,6 +10,7 @@
   * [LIMIT AND OFFSET](#limit-and-offset)
   * [GROUP BY](#group-by)
   * [COMMON TABLE EXPRESSIONS](#common-table-expressions)
+  * [WINDOW FUNCTIONS](#window-functions)
   * [NULL PITFALLS](#null-pitfalls)
 * [Advanced queries walkthrough](#advanced-queries-walkthrough)
 * [Optimizations](#optimizations)
@@ -528,6 +529,74 @@ ORDER BY open_order;
 Recursive CTEs are most often used to work with hierarchical or graph-like data.
 
 <!-- /////////////////// -->
+<!-- Window functions -->
+<!-- /////////////////// -->
+### <a id="window-functions" href="#table-of-contents">Window Functions</a>
+
+Conceptually, a windowing function compares the current row with all rows in the group. The number of rows returned does not change.
+
+The syntax of a window function call is one of the following:
+```sql
+function_name ([expression [, expression ... ]]) [ FILTER ( WHERE filter_clause ) ] OVER window_name
+function_name ([expression [, expression ... ]]) [ FILTER ( WHERE filter_clause ) ] OVER ( window_definition )
+function_name ( * ) [ FILTER ( WHERE filter_clause ) ] OVER window_name
+function_name ( * ) [ FILTER ( WHERE filter_clause ) ] OVER ( window_definition )
+```
+
+static window vs sliding window vs ...?
+
+The `OVER` defines the window we are looking at. In this case, the window is the country the row belongs to.
+
+where window_definition has the syntax
+```sql
+[ existing_window_name ]
+[ PARTITION BY expression [, ...] ]
+[ ORDER BY expression [ ASC | DESC | USING operator ] [ NULLS { FIRST | LAST } ] [, ...] ]
+[ frame_clause ]
+```
+
+`PARTITION BY` takes any expression. Usually, most people will use a column to partition the data. The point is that data is split using an expression. year < 1990 can return two values: true or false. Depending on the group a year is in, it will be assigned to the pre-1990 average or the post-1990 average.
+
+Sometimes, it is necessary to sort data inside a window. `ORDER BY` will provide data to your aggregate functions in a certain way.
+
+At this point, it is a good idea for SQL students to remember what an ORDER BY clause does inside an OVER clause. In this example, the PARTITION BY clause will create one group for each country and order data inside the group. The min function will loop over the sorted data and provide the required minimums.
+
+If the aggregate is used without ORDER BY, it will automatically take the minimum of the entire dataset inside your windows. This doesn’t happen if there is an ORDER BY clause. In this case, it will always be the minimum up to this point, given the order that you have defined.
+
+The optional frame_clause can be one of
+```sql
+{ RANGE | ROWS | GROUPS } frame_start [ frame_exclusion ]
+{ RANGE | ROWS | GROUPS } BETWEEN frame_start AND frame_end [ frame_exclusion ]
+```
+
+The situation changes if we start to use the column containing those duplicates. In the case of ROWS, PostgreSQL simply takes the previous and the next rows. In the case of RANGE, it takes the entire group of duplicates. Hence, the array is a lot longer. The entire group of identical values is taken.
+
+where frame_start and frame_end can be one of
+```sql
+UNBOUNDED PRECEDING     -- all rows before current
+offset PRECEDING        -- x rows before current
+CURRENT ROW
+offset FOLLOWING        -- x rows after current
+UNBOUNDED FOLLOWING     -- all rows after current
+```
+
+and frame_exclusion can be one of
+```sql
+EXCLUDE CURRENT ROW     
+EXCLUDE GROUP           -- removes a group from window function input
+EXCLUDE TIES            -- removes duplicates from window function input 
+EXCLUDE NO OTHERS
+```
+
+The rank() and dense_rank() functions. The rank() function returns the number of the current row within its window. The counting starts at 1. 
+
+Some applications require data to be split into ideally equal groups. The ntile() function will do exactly that for you.
+
+The WINDOW clause allows developers to predefine a window and use it in various places in the query.
+
+CREATE AGGREGATE command for custom aggregate functions
+
+<!-- /////////////////// -->
 <!-- NULL -->
 <!-- /////////////////// -->
 ### <a id="null-pitfalls" href="#table-of-contents">NULL PITFALLS</a>
@@ -545,12 +614,6 @@ Using `=` or `<>` won’t work, since `NULL` is never equal or not equal to anyt
   ```sql
   ...
   WHERE NULL IS DISTINCT FROM NULL                  -- false
-  
-  ...
-  WHERE NULL IS NOT DISTINCT FROM NULL              -- true
-  
-  ...
-  WHERE NULL IS DISTINCT FROM 'Leo Tolstoy'         -- true
   
   ...
   WHERE NULL IS NOT DISTINCT FROM 'Leo Tolstoy'     -- false
