@@ -532,15 +532,37 @@ Recursive CTEs are most often used to work with hierarchical or graph-like data.
 <!-- /////////////////// -->
 ### <a id="null-pitfalls" href="#table-of-contents">NULL PITFALLS</a>
 
-`NULL` introduces three-valued logic to SQL – it is similar to boolean logic except you add `NULL` to it and assume that anything mixing with `NULL` is `NULL`, even if that is `NULL`. That’s why we have other SQL operators to work with data that might be `NULL`: they are `IS DISTINCT FROM`/`IS NOT DISTINCT FROM` and `IS NULL`/`IS NOT NULL`. (Do these operators pretend that `NULL` is the same thing as `NULL`?)
+`NULL` is SQL's way of saying "unknown". Its presence changes logic from two-valued (true/false) to three-valued logic (true/false/null). Any expression involving `NULL` evalutes to `NULL` and in conditional contexts, that means false. For example, `WHERE x = NULL` will never match any row, because the result of `x = NULL` is `NULL`, not true. 
 
-This boils down to the following simple rules: when working with `NULL`, you should remember:
-* An expression can be null, but it can never equal null. To test whether an expression is null, you need to use the is null operator
-* Two nulls are never equal to each other.
-* To test whether value is in range, you need to test that column to null as well
-* In aggregate functions like `COUNT`, using `*` means null is also counted
+This leads to some unintuitive outcomes and the need for special operators.
+* `IS NULL`/`IS NOT NULL` is the only correct way to test if a value is or isn't `NULL`.
+  ```sql
+  ...
+  WHERE checked_out_by IS NULL
+  ```
+Using `=` or `<>` won’t work, since `NULL` is never equal or not equal to anything.
+* `IS DISTINCT FROM`/`IS NOT DISTINCT FROM` are equality operators that treat two `NULL`s as equal.
+  ```sql
+  ...
+  WHERE NULL IS DISTINCT FROM NULL                  -- false
+  
+  ...
+  WHERE NULL IS NOT DISTINCT FROM NULL              -- true
+  
+  ...
+  WHERE NULL IS DISTINCT FROM 'Leo Tolstoy'         -- true
+  
+  ...
+  WHERE NULL IS NOT DISTINCT FROM 'Leo Tolstoy'     -- false
+  ```
 
-In order to avoid `NULL` in column values, you use `NOT NULL` constraint, even if you have a default value specified, in `CREATE TABLE`. 
+A few important takeaways:
+* An expression can be `NULL`, but it can never equal `NULL`.
+* Two `NULL`s are not equal in normal comparisons, but are equal under `IS [NOT] DISTINCT FROM`.
+* When testing numeric ranges, you must handle nulls explicitly.
+* Aggregate functions ignore nulls except `COUNT(*)`, which counts every row regardless of column nulls.
+
+To prevent `NULL` values in the first place, declare columns as `NOT NULL` in `CREATE TABLE`, even if you also provide a default value. This constraint enforces that the column can never store unknown data.
 
 ---
 
