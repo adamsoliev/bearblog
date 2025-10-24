@@ -164,10 +164,9 @@ FROM books AS b;
 ```
 
 The result table now contains transformed values like 
-| title | genre.. | autho.. | curre.. | circu.. | publi.. | publi.. |
+| | | | | | | |
 |-|-|-|-|-|-|-| 
 | The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01 |
-| ... | ... | ... | ... | ... | ... | ... |
 
 <!-- /////////////////// -->
 <!-- FROM -->
@@ -331,7 +330,7 @@ WHERE genre='Literature' AND published_year=1869;
   
 --- 
 
-==Now that you understand `FROM` (which tables to get data from), `WHERE` (how to filter rows), and `SELECT` (which columns to output), what do you think is the logical order in which a database executes them?==
+==Now that you understand `FROM` (which tables to get data from), `WHERE` (how to filter rows), and `SELECT` (which columns to output), what do you think is the logical order in which a database executes them?==[^1]
 
 ---
 
@@ -471,7 +470,7 @@ GROUP BY CUBE (l.branch_name, b.genre);
 
 ---
 
-==Now that you understand `ORDER BY`, `LIMIT/OFFSET`, and `GROUP BY` in addition to `FROM`, `SELECT` and `WHERE`, what do you think is the logical order in which a database executes all of them?==
+==Now that you understand `ORDER BY`, `LIMIT/OFFSET`, and `GROUP BY` in addition to `FROM`, `SELECT` and `WHERE`, what do you think is the logical order in which a database executes all of them?==[^2]
 
 ---
 
@@ -651,4 +650,6 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 # <a id="conclusion" href="#table-of-contents">Conclusion</a>
 
 # <a id="references" href="#table-of-contents">References</a>
-[^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.
+[^1]: FROM → WHERE → SELECT
+[^2]: FROM → WHERE → GROUP BY → SELECT → ORDER BY → LIMIT/OFFSET
+[^3]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.
