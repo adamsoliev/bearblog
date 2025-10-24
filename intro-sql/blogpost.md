@@ -531,44 +531,62 @@ Recursive CTEs are most often used to work with hierarchical or graph-like data.
 <!-- /////////////////// -->
 <!-- Window functions -->
 <!-- /////////////////// -->
-### <a id="window-functions" href="#table-of-contents">Window Functions</a>
+### <a id="window-functions" href="#table-of-contents">WINDOW FUNCTIONS</a>
 
-A windowing function performs a calculation across certain rows that are somehow related to the current row. This is similar to an aggregate function except the related rows won't be grouped into a single output row and instead keep their separate identities.
+A windowing function performs a calculation across a set of rows that are somehow related to the current row. It's similar to an aggregate function, except that it does not collapse rows into a single result.
 
-Conceptual syntax of a window function call:
+General form:
 ```sql
 FUNCTION_NAME(arguments) OVER ( [PARTITION BY ...] [ORDER BY ...] [ROWS/RANGE/GROUPS ...] )
 ```
 
-`FUNCTION_NAME` indicates the type of calculation you are doing - arithmetic like `SUM(column)`, rank like `rank()`, etc.
+At a high level:
+* `FUNCTION_NAME` is the operation you're performing - e.g., `SUM(column)`, `RANK()`, etc. 
+* `OVER` defines *which rows* are considered part of the calculation ("window").
+```sql
+-- example
+```
 
-`OVER` specifies which set of rows the calculation is being done over ("window"). It is the defining feature of window functions.
+`PARTITION BY` divides the rows into groups ("partitions") that share the same values of the `PARTITION BY` expression(s). Each partition is processed independently, and the function result “resets” when moving between partitions.
+```sql
+-- example
+```
 
-`PARTITION BY` allows you to divide the result set into independent groups, or "partitions." The window function calculation is performed separately for each partition and resets when it crosses into a new one.
+`ORDER BY` defines the logical ordering of rows *within* each partition. This ordering matters for ranking functions (like `ROW_NUMBER`) and for window frames that depend on order (like a running total).
+```sql
+-- example
+```
 
-`ORDER BY` defines the logical order of rows within each partition. This is essential for ranking functions (like `ROW_NUMBER`) and for window frames that depend on order (like a running total).
+`ROWS/RANGE/GROUPS` defines a sliding window ("frame") within the ordered partition, relative to the current row. 
+```sql
+-- example
+```
+If `ROWS/RANGE/GROUPS` is omitted, most databases default to:
+```sql
+RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW   -- all rows from the start of the partition up to the current one
+```
 
-At this point, it is a good idea for SQL students to remember what an ORDER BY clause does inside an OVER clause. In this example, the PARTITION BY clause will create one group for each country and order data inside the group. The min function will loop over the sorted data and provide the required minimums.
+> Note: The concept of a “current row” only makes sense when an `ORDER BY` is present. 
+> Without `ORDER BY`, there is no defined order within a partition, so the window frame automatically includes all rows in the partition.
 
-If the aggregate is used without ORDER BY, it will automatically take the minimum of the entire dataset inside your windows. This doesn’t happen if there is an ORDER BY clause. In this case, it will always be the minimum up to this point, given the order that you have defined.
-
-`ROWS/RANGE/GROUPS` defines a moving subset of rows ("frame") within the ordered partition, relative to the current row. If you don't specify this, a default is used (which is often `RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW` if an ORDER BY is present).
-
-`FILTER` ( `WHERE` filter_clause ) is a convenience clause supported by PostgreSQL (and the SQL standard) but not by Oracle or MySQL.
+PostgreSQL (and the SQL standard) support `FILTER` ( `WHERE` filter_clause ) that lets you apply a condition inside an aggregate or window function:
 ```sql
 SUM(amount)  FILTER (WHERE type = 'sale') OVER (...)                -- PostgreSQL
 
 SUM(CASE WHEN type = 'sale' THEN amount ELSE NULL END) OVER (...)   -- generalized, including Oracle/MySQL
 ```
-Conceptually, `FILTER` is just syntactic sugar for a conditional aggregation using a `CASE` statement inside the function. The generalized logic is the CASE statement.
+As you can see above, `FILTER` is syntactic sugar for a conditional aggregation using a `CASE` statement inside the function.
 
-The rank() and dense_rank() functions. The rank() function returns the number of the current row within its window. The counting starts at 1. 
+The rows considered by a window function are those of the “virtual table” produced by the query's `FROM`
+clause as filtered by its `WHERE`, `GROUP BY`, and `HAVING` clauses if any. A query can contain
+multiple window functions that slice up the data in different ways using different `OVER` clauses, but they
+all act on the same collection of rows defined by this virtual table.
 
-Some applications require data to be split into ideally equal groups. The ntile() function will do exactly that for you.
-
-The WINDOW clause allows developers to predefine a window and use it in various places in the query.
-
-CREATE AGGREGATE command for custom aggregate functions
+`WINDOW` clause allows developers to predefine a window and use it in various places in the query. 
+```sql
+-- example
+```
+This keeps queries concise and consistent when several functions share the same window definition.
 
 <!-- /////////////////// -->
 <!-- NULL -->
