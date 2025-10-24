@@ -661,9 +661,404 @@ To prevent `NULL` values in the first place, declare columns as `NOT NULL` in `C
 ---
 
 # <a id="advanced-queries-walkthrough" href="#table-of-contents">Advanced queries walkthrough</a>
-<!--<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/third_example.png?raw=true" alt="first example" height="400" style="border: 1px solid black;">
-</div>-->
+This section walks through 9 queries I wrote to answer questions from CMU 15-445’s Spring 2025 [homework 1](https://15445.courses.cs.cmu.edu/spring2025/homework1/). All questions are based on [MusicBrainz dataset](https://musicbrainz.org/doc/MusicBrainz_Database).
+
+The following figure illustrates the schema of the tables:
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/schema2023-v2.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+</div>
+
+#### Q2
+Find all artists in the `United States` born on July 4th who ever released music in language other than `English`. List them in alphabetical order.\
+**Hints**: Only consider the artists with artist type `Person`. `United States` is an area name. If a release is in `[Multiple languages]`, consider it as not `English`.
+```sql
+SELECT A.name AS artist_name
+FROM artist AS A
+JOIN area ON A.area = area.id
+JOIN artist_type AS AT ON A.type = AT.id
+WHERE 
+  -- non-English release
+  A.id IN (
+    SELECT DISTINCT ACN.artist
+    FROM artist_credit_name AS ACN
+        JOIN release AS R ON ACN.artist_credit = R.artist_credit
+        JOIN language AS L ON R.language = L.id
+    WHERE L.name != 'English'
+  )
+  AND area.name = 'United States'
+  AND A.begin_date_month = 7
+  AND A.begin_date_day = 4
+  AND AT.name = 'Person'
+ORDER BY A.name;
+```
+
+#### Q3
+Find the ten latest collaborative releases. Only consider the releases with valid release date. Order the results by release date from newest to oldest, and then by release name alphabetically.\
+**Details**: A release is collaborative if two or more artists are involved in it. A date is valid if it has non-null values for the year, month, and day. Format the release date in the result as `YYYY-MM-DD`, without adding leading zeros if the month or day is less than `10`.\
+**Hints**: The `artist_count` field in `artist_credit` table denotes the number of artists involved in a release.
+```sql
+SELECT
+  (ri.date_year || '-' || ri.date_month || '-' || ri.date_day) AS RELEASE_DATE,
+  r.name AS RELEASE_NAME,
+  ac.artist_count AS ARTIST_COUNT
+FROM release AS r
+JOIN artist_credit AS ac ON r.artist_credit = ac.id
+JOIN release_info AS ri ON r.id = ri.release
+WHERE
+  ac.artist_count > 1
+  AND ri.date_year IS NOT NULL
+  AND ri.date_month IS NOT NULL
+  AND ri.date_day IS NOT NULL
+ORDER BY
+  -- in most dbs, `order by` clause defaults to ASC
+  ri.date_year DESC, ri.date_month DESC, ri.date_day DESC, r.name
+LIMIT 10;
+```
+
+#### Q4
+List the releases with the longest names in each CD-based medium format. Sort the result alphabetically by medium format name, and then release name. If there is a tie, include them all in the result.\
+**Details**: A medium is considered CD-based if its format name contains the word `CD`.
+
+```sql
+WITH RankedReleases AS (
+    SELECT
+          mf.name AS format_name,
+          r.name AS release_name,
+          RANK() OVER(PARTITION BY mf.name ORDER BY LENGTH(r.name) DESC) as rnk
+    FROM  release AS r
+    JOIN  medium AS m ON r.id = m.release
+    JOIN  medium_format AS mf ON m.format = mf.id
+    WHERE mf.name LIKE '%CD%'
+)
+SELECT
+    format_name,
+    release_name
+FROM
+    RankedReleases
+WHERE
+    rnk = 1
+ORDER BY
+    format_name,
+    release_name;
+```
+
+#### Q5
+Find the 11 artists who released most christmas songs. For each artist, list their oldest five releases in November with valid release date. Organize the results by the number of each artist's christmas songs, highest to lowest. If two artists released the same number of christmas songs, order them alphabetically. After that, organize the release name alphabetically, and finally by the release date, oldest to newest.\
+**Details**: Only consider `Person` artists. A release is a christmas song if its name contains the word `christmas`, case-insensitively. When finding the 11 artists, if there's a tie, artists who comes first in alphabetical order takes the priority. A date is valid if it has non-null values for the year, month, and day. When counting the number of christmas songs, simply count the number of distinct release IDs. However, when finding the five oldest releases in November, releases with same name and date are considered the same. If some of the 11 artists wrote releases less than five in November, just include all of them. Format release date in the result as `YYYY-MM-DD`, without adding a leading zero if the month or day is less than `10`.
+
+```sql
+-- Step 1: Use a CTE to find the top 11 artists based on their Christmas song count
+WITH TopArtists AS (
+    SELECT
+        a.id AS artist_id,
+        a.name AS artist_name,
+        COUNT(DISTINCT r.id) AS christmas_song_count
+    FROM
+      artist AS a
+    JOIN
+      artist_type AS at ON a.type = at.id
+    JOIN
+      artist_credit_name AS acn ON a.id = acn.artist
+    JOIN
+      release AS r ON acn.artist_credit = r.artist_credit
+    WHERE
+      at.name = 'Person' AND
+      r.name LIKE '%christmas%'
+    GROUP BY
+      a.id, a.name
+    ORDER BY
+      christmas_song_count DESC, a.name ASC
+    LIMIT 11
+)
+-- Step 2: For each artist from the CTE, find their 5 oldest November releases
+SELECT
+    ta.artist_name,
+    nov_releases.release_name,
+    nov_releases.release_date
+FROM TopArtists AS ta,
+LATERAL (
+    SELECT
+        t.release_name,
+        t.release_date,
+        t.date_year, t.date_month, t.date_day
+    FROM (
+        SELECT DISTINCT -- Ensures releases with the same name and date are treated as one
+            r.name as release_name,
+            (ri.date_year || '-' || ri.date_month || '-' || ri.date_day) AS release_date,
+            ri.date_year, ri.date_month, ri.date_day
+        FROM artist_credit_name acn
+        JOIN release r ON acn.artist_credit = r.artist_credit
+        JOIN release_info ri ON r.id = ri.release
+        WHERE acn.artist = ta.artist_id -- This correlation is the key part of the LATERAL join
+            AND ri.date_month = 11
+            AND ri.date_year IS NOT NULL AND ri.date_month IS NOT NULL AND ri.date_day IS NOT NULL
+    ) AS t
+    ORDER BY t.date_year ASC, t.date_month ASC, t.date_day ASC
+    LIMIT 5
+) AS nov_releases
+-- Step 3: Apply the final, complex ordering
+ORDER BY
+    ta.christmas_song_count DESC,
+    ta.artist_name ASC,
+    nov_releases.release_name ASC,
+    nov_releases.date_year ASC, nov_releases.date_month ASC, nov_releases.date_day ASC;
+```
+
+#### Q6
+Find the artists in the `United States` whose last release and second last release were both in 1999. Order the result by artist name, last release name, and second last release name alphabetically.
+**Details**: If there are releases with identical names and dates by the same artist, treat them as a single release and avoid duplicate entries. Only consider releases with a valid date. A date is valid if it has non-null values for the year, month, and day. If two releases occurred on the same date, we consider the release with the name that comes first in alphabetical order as the first release.
+
+```sql
+-- Step 1: Rank all releases for each artist in the US from newest to oldest
+WITH AllRankedReleases AS (
+    SELECT
+        artist_name,
+        release_name,
+        release_year,
+        ROW_NUMBER() OVER (
+            PARTITION BY artist_id
+            ORDER BY release_year DESC, release_month DESC, release_day DESC, release_name ASC
+        ) as rn
+    FROM (
+        -- Inner query to get distinct releases
+        SELECT DISTINCT
+            a.id AS artist_id,
+            a.name AS artist_name,
+            r.name AS release_name,
+            ri.date_year AS release_year,
+            ri.date_month AS release_month,
+            ri.date_day AS release_day
+        FROM artist AS a
+        JOIN area ON a.area = area.id
+        JOIN artist_credit_name AS acn ON a.id = acn.artist
+        JOIN release AS r ON acn.artist_credit = r.artist_credit
+        JOIN release_info AS ri ON r.id = ri.release
+        WHERE
+            area.name = 'United States'
+            AND ri.date_year IS NOT NULL
+            AND ri.date_month IS NOT NULL
+            AND ri.date_day IS NOT NULL
+    )
+),
+-- Step 2: Pivot the top two releases and their years into a single row per artist
+PivotedReleases AS (
+    SELECT
+        artist_name,
+        MAX(CASE WHEN rn = 1 THEN release_name END) AS LAST_RELEASE_NAME,
+        MAX(CASE WHEN rn = 2 THEN release_name END) AS SECOND_LAST_RELEASE_NAME,
+        MAX(CASE WHEN rn = 1 THEN release_year END) AS LAST_RELEASE_YEAR,
+        MAX(CASE WHEN rn = 2 THEN release_year END) AS SECOND_LAST_RELEASE_YEAR
+    FROM AllRankedReleases
+    WHERE rn <= 2
+    GROUP BY artist_name
+)
+-- Step 3: Filter for artists whose top two releases were in 1999 and format the output
+SELECT
+    ARTIST_NAME,
+    LAST_RELEASE_NAME,
+    SECOND_LAST_RELEASE_NAME
+FROM PivotedReleases
+WHERE
+    LAST_RELEASE_YEAR = 1999
+    AND SECOND_LAST_RELEASE_YEAR = 1999
+ORDER BY
+    ARTIST_NAME,
+    LAST_RELEASE_NAME,
+    SECOND_LAST_RELEASE_NAME;
+```
+
+#### Q7
+Find the ten youngest collaborators of the `Pittsburgh Symphony Orchestra`. Exclude the `Pittsburgh Symphony Orchestra` itself from the final result. Organize the result by the collaborator's begin date, youngest to oldest, and then alphabetical order on their names. Only consider the artists with valid `begin_date`.\
+**Details**: An artist is considered a collaborator if they appear in the same artist credit. An artist is younger than another if they has later `begin_date`. A date is valid if it has non-null values for the year, month, and day. Format the begin date as `YYYY-MM-DD`, without adding a leading zero if the month or day is less than 10. Please always use the `name` field in the `artist` table when searching for a specific artist name.
+
+```sql
+-- Step 1: Find all artist_credit IDs that include the orchestra
+WITH OrchestraCredits AS (
+    SELECT
+        acn.artist_credit
+    FROM artist AS a
+    JOIN artist_credit_name AS acn ON a.id = acn.artist
+    WHERE a.name = 'Pittsburgh Symphony Orchestra'
+),
+-- Step 2: Find all unique artist IDs that share those credits, excluding the orchestra itself
+CollaboratorIDs AS (
+    SELECT DISTINCT
+        acn.artist AS collaborator_id
+    FROM artist_credit_name AS acn
+    WHERE
+        acn.artist_credit IN (SELECT artist_credit FROM OrchestraCredits)
+        AND acn.artist != (SELECT id FROM artist WHERE name = 'Pittsburgh Symphony Orchestra')
+)
+-- Step 3: Select the collaborators' details, apply filters, and order the final result
+SELECT
+    a.name AS COLLABORATOR_NAME,
+    (a.begin_date_year || '-' || a.begin_date_month || '-' || a.begin_date_day) AS BEGIN_DATE
+FROM artist AS a
+JOIN CollaboratorIDs AS c ON a.id = c.collaborator_id
+WHERE
+    a.begin_date_year IS NOT NULL
+    AND a.begin_date_month IS NOT NULL
+    AND a.begin_date_day IS NOT NULL
+ORDER BY
+    a.begin_date_year DESC,
+    a.begin_date_month DESC,
+    a.begin_date_day DESC,
+    a.name ASC
+LIMIT 10;
+```
+
+#### Q8
+For each area, find the language with most releases from the artists in that area. Only include the areas where the most popular language has minimum of `5000` releases (inclusive). Arrange the results in descending order based on the release count (per language per area), and in alphabetical order by area name.\
+**Details**: When counting the number of releases, count the number of distinct release ids. If two areas have different ids with same names, treat them as the same area. When selecting the most popular language for each area, if there is a tie, choose the one which its language name comes first alphabetically. Note that we are interested in the area of artists, not the area of releases.
+
+```sql
+-- Step 1: Count releases for each language in each ARTIST's area.
+WITH LanguageCountsPerArea AS (
+    SELECT
+        ar.name AS area_name,
+        l.name AS language_name,
+        COUNT(DISTINCT r.id) AS release_count
+    FROM area AS ar
+    JOIN artist AS a ON ar.id = a.area
+    JOIN artist_credit_name AS acn ON a.id = acn.artist
+    JOIN release AS r ON acn.artist_credit = r.artist_credit
+    JOIN language AS l ON r.language = l.id
+    GROUP BY
+        ar.name,
+        l.name
+),
+-- Step 2: Rank languages within each area to find the most popular one, handling ties.
+RankedLanguages AS (
+    SELECT
+        area_name,
+        language_name,
+        release_count,
+        ROW_NUMBER() OVER(
+            PARTITION BY area_name
+            ORDER BY release_count DESC, language_name ASC
+        ) as rn
+    FROM LanguageCountsPerArea
+)
+-- Step 3: Select the top language for each area and apply the final filters and ordering.
+SELECT
+    AREA_NAME,
+    LANGUAGE_NAME,
+    RELEASE_COUNT
+FROM RankedLanguages
+WHERE
+    rn = 1
+    AND release_count >= 5000
+ORDER BY
+    release_count DESC,
+    area_name ASC;
+```
+
+#### Q9
+For each decade from 1950s to 2010s (inclusive), count the number of non-US artists who has a US release in the same decade with their retirement. Order the result by decade, from oldest to newest.\
+**Details**: Print the decade in a string format like `1950s`. Use `end_date_year` to decide the retirement year.
+
+```sql
+-- Step 1: Identify non-US artists and their retirement decade from the 1950s to 2010s.
+WITH ArtistDecade AS (
+  SELECT
+    id AS artist_id,
+    CAST(FLOOR(end_date_year / 10) * 10 AS TEXT) || 's' AS retirement_decade
+  FROM artist
+  WHERE
+    end_date_year BETWEEN 1950 AND 2019
+    AND area != (
+      SELECT
+        id
+      FROM area
+      WHERE
+        name = 'United States'
+    )
+),
+-- Step 2: Identify US releases and the decade they were released in.
+ReleaseDecade AS (
+  SELECT
+    T3.artist AS artist_id,
+    CAST(FLOOR(T1.date_year / 10) * 10 AS TEXT) || 's' AS release_decade
+  FROM release_info AS T1
+  INNER JOIN release AS T2
+    ON T1.release = T2.id
+  INNER JOIN artist_credit_name AS T3
+    ON T2.artist_credit = T3.artist_credit
+  WHERE
+    T1.area = (
+      SELECT
+        id
+      FROM area
+      WHERE
+        name = 'United States'
+    )
+)
+-- Step 3: Count the artists who appear in both CTEs for the same decade.
+SELECT
+  T1.retirement_decade AS DECADE,
+  COUNT(DISTINCT T1.artist_id) AS RELEASE_COUNT
+FROM ArtistDecade AS T1
+INNER JOIN ReleaseDecade AS T2
+  ON T1.artist_id = T2.artist_id
+  AND T1.retirement_decade = T2.release_decade
+GROUP BY
+  T1.retirement_decade
+ORDER BY
+  T1.retirement_decade;
+```
+
+#### Q10
+Find all releases before 1950 (inclusive) created by artists from multiple areas. Exclude if at least one of its artists are from the `United States`. For each release, print the release name, year, the number of distinct areas where its artists are from, and the list of area names in alphabetical order, separated by commas. Order the result by the area count, highest to lowest, and then by the release year, oldest to newest, and then by the release name alphabetically.
+
+```sql
+WITH ReleaseArtistInfo AS (
+  -- By adding DISTINCT here, we ensure that for any given release,
+  -- each artist area is listed only once.
+  SELECT DISTINCT
+    T1.name AS release_name,
+    T2.date_year AS release_year,
+    T6.name AS artist_area_name,
+    T1.id AS release_id
+  FROM release AS T1
+  INNER JOIN release_info AS T2
+    ON T1.id = T2.release
+  INNER JOIN artist_credit AS T3
+    ON T1.artist_credit = T3.id
+  INNER JOIN artist_credit_name AS T4
+    ON T3.id = T4.artist_credit
+  INNER JOIN artist AS T5
+    ON T4.artist = T5.id
+  INNER JOIN area AS T6
+    ON T5.area = T6.id
+  WHERE
+    T2.date_year <= 1950
+)
+-- Now, aggregate the unique information for each release.
+SELECT
+  release_name AS RELEASE_NAME,
+  release_year AS RELEASE_YEAR,
+  -- This COUNT still works as intended.
+  COUNT(artist_area_name) AS ARTIST_AREA_COUNT,
+  -- This GROUP_CONCAT no longer needs DISTINCT because the CTE already handled it.
+  -- This avoids the syntax error.
+  GROUP_CONCAT(artist_area_name, ', ') AS ARTIST_AREA_NAMES
+FROM ReleaseArtistInfo
+GROUP BY
+  release_id,
+  release_name,
+  release_year
+HAVING
+  -- The logic for the HAVING clause remains the same and is still correct.
+  COUNT(artist_area_name) > 1
+  AND
+  SUM(CASE WHEN artist_area_name = 'United States' THEN 1 ELSE 0 END) = 0
+-- The final ordering is unchanged.
+ORDER BY
+  ARTIST_AREA_COUNT DESC,
+  release_year ASC,
+  release_name ASC;
+```
+
 
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
