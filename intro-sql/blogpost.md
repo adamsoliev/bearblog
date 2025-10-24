@@ -328,6 +328,12 @@ WHERE genre='Literature' AND published_year=1869;
   );  
   ```
   This returns every book published after all of Dostoevsky’s books (i.e., later than his most recent one).
+  
+--- 
+
+==Now that you understand `FROM` (which tables to get data from), `WHERE` (how to filter rows), and `SELECT` (which columns to output), what do you think is the logical order in which a database executes them?==
+
+---
 
 <!-- /////////////////// -->
 <!-- ORDER BY -->
@@ -462,6 +468,12 @@ FROM books AS b
     JOIN library AS l ON l.library_id = b.library_id
 GROUP BY CUBE (l.branch_name, b.genre);
 ```
+
+---
+
+==Now that you understand `ORDER BY`, `LIMIT/OFFSET`, and `GROUP BY` in addition to `FROM`, `SELECT` and `WHERE`, what do you think is the logical order in which a database executes all of them?==
+
+---
 
 <!-- /////////////////// -->
 <!-- COMMON TABLE EXPRESSION (CTE) -->
