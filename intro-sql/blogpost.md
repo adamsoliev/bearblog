@@ -544,7 +544,7 @@ Recursive CTEs are most often used to work with hierarchical or graph-like data.
 <!-- /////////////////// -->
 ### <a id="window-functions" href="#table-of-contents">WINDOW FUNCTIONS</a>
 
-A windowing function performs a calculation across a set of rows that are somehow related to the current row. It's similar to an aggregate function, except that it does not collapse rows into a single result.
+A window function performs a calculation across a set of rows that are somehow related to the current row. It's similar to an aggregate function, except that it does not collapse rows into a single result. It operates on rows of the "virtual table" produced by the query's FROM clause as filtered by its WHERE, GROUP BY, and HAVING clauses if any.
 
 General form:
 ```sql
@@ -555,23 +555,47 @@ At a high level:
 * `FUNCTION_NAME` is the operation you're performing - e.g., `SUM(column)`, `RANK()`, etc. 
 * `OVER` defines *which rows* are considered part of the calculation ("window").
 ```sql
--- example
+SELECT 
+    full_name,
+    membership_tier,
+    DENSE_RANK() OVER ()  -- window includes all rows
+FROM users;
 ```
 
 `PARTITION BY` divides the rows into groups ("partitions") that share the same values of the `PARTITION BY` expression(s). Each partition is processed independently, and the function result “resets” when moving between partitions.
 ```sql
--- example
+SELECT 
+    full_name,
+    membership_tier,
+    DENSE_RANK() OVER (PARTITION BY membership_tier)    -- window per membership_tier
+FROM users;
 ```
 
-`ORDER BY` defines the logical ordering of rows *within* each partition. This ordering matters for ranking functions (like `ROW_NUMBER`) and for window frames that depend on order (like a running total).
+`ORDER BY` defines the logical ordering of rows *within* each partition. This ordering matters for ranking functions  and for window frames that depend on order (like a running total).
 ```sql
--- example
+SELECT 
+    full_name,
+    membership_tier,
+    DENSE_RANK() OVER (PARTITION BY membership_tier ORDER BY joined_on)
+FROM users;
 ```
 
 `ROWS/RANGE/GROUPS` defines a sliding window ("frame") within the ordered partition, relative to the current row. 
 ```sql
--- example
+SELECT
+    author,
+    title,
+    published_year,
+    AVG(published_year) OVER (
+        PARTITION BY author
+        ORDER BY published_year
+        ROWS BETWEEN 1 PRECEDING AND CURRENT ROW
+    ) AS rolling_avg_year
+FROM books
+ORDER BY author, published_year;
 ```
+`ROWS BETWEEN 1 PRECEDING AND CURRENT ROW` limits the window to at most two rows per author: the current book plus the prior one in publication order. Swapping `ROWS` for `RANGE` would include every peer that shares the same `published_year`, while `GROUPS` treats each distinct `published_year` as a single unit. In other words, `GROUPS BETWEEN 1 PRECEDING AND CURRENT ROW` would bring in every title from the current year and every title from the immediately previous year for that author.
+
 If `ROWS/RANGE/GROUPS` is omitted, most databases default to:
 ```sql
 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW   -- all rows from the start of the partition up to the current one
@@ -588,14 +612,18 @@ SUM(CASE WHEN type = 'sale' THEN amount ELSE NULL END) OVER (...)   -- generaliz
 ```
 As you can see above, `FILTER` is syntactic sugar for a conditional aggregation using a `CASE` statement inside the function.
 
-The rows considered by a window function are those of the “virtual table” produced by the query's `FROM`
-clause as filtered by its `WHERE`, `GROUP BY`, and `HAVING` clauses if any. A query can contain
-multiple window functions that slice up the data in different ways using different `OVER` clauses, but they
-all act on the same collection of rows defined by this virtual table.
-
-`WINDOW` clause allows developers to predefine a window and use it in various places in the query. 
+`WINDOW` allows you to predefine a window and use it in various places in the query. 
 ```sql
--- example
+SELECT
+    b.author,
+    b.title,
+    b.published_year,
+    COUNT(*) OVER author_titles AS titles_per_author,
+    DENSE_RANK() OVER author_chronology AS publication_rank
+FROM books AS b
+WINDOW
+    author_titles AS (PARTITION BY b.author),
+    author_chronology AS (author_titles ORDER BY b.published_year);
 ```
 This keeps queries concise and consistent when several functions share the same window definition.
 

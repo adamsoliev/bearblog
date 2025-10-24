@@ -66,7 +66,7 @@ FROM
 
 
 SELECT
-    b.title,
+    b.title AS title,
     upper(b.genre) AS genre_uppercase,
     replace(b.author, ' ', '_') AS author_slug,
     COALESCE(CAST(b.checked_out_by AS TEXT), 'Available') AS current_holder_id,
@@ -275,3 +275,91 @@ WITH RECURSIVE branch_openings AS (
   SELECT branch_name, city, opened_on, open_order
   FROM branch_openings
   ORDER BY open_order;
+
+
+SELECT 17 <@ '[10, 19]'::int4range;
+SELECT int4multirange('{(10, 20), (15, 30)}');
+
+CREATE TABLE t_oil (
+    region        TEXT,
+    country       TEXT,
+    year          INT,
+    production    INT,
+    consumption   INT
+);
+
+COPY t_oil
+FROM PROGRAM
+'curl https://www.cybertec-postgresql.com/secret/oil_ext.txt';
+
+
+
+
+SELECT
+    b.title,
+    u.full_name
+FROM books AS b
+    JOIN users AS u
+    ON u.user_id = b.checked_out_by AND b.genre = 'Literature';
+
+SELECT title, author
+FROM books
+    NATURAL JOIN library;
+
+SELECT *
+FROM books AS b
+    JOIN library AS l ON b.library_id = l.library_id AND b.genre = 'Literature';
+
+SELECT 1
+WHERE 5 NOT IN (1, 2, 3, NULL);
+
+SELECT
+    b.title, b.published_year
+FROM books AS b
+WHERE b.published_year > ANY (
+    SELECT
+        comparison.published_year
+    FROM books AS comparison
+    WHERE comparison.author = 'Fyodor Dostoevsky'
+);
+
+SELECT
+    b.title, b.published_year
+FROM books AS b
+WHERE b.published_year > ALL (
+    SELECT
+        comparison.published_year
+    FROM books AS comparison
+    WHERE comparison.author = 'Fyodor Dostoevsky'
+);
+
+SELECT
+    comparison.published_year
+FROM books AS comparison
+WHERE comparison.author = '';
+
+SELECT title, author, published_year
+FROM books
+ORDER BY published_year DESC
+LIMIT 2;
+
+SELECT 
+    full_name,
+    membership_tier,
+    RANK() OVER ()
+FROM users;
+
+
+SELECT 
+    full_name,
+    membership_tier,
+    DENSE_RANK() OVER (PARTITION BY membership_tier)
+FROM users;
+
+
+SELECT 
+    full_name,
+    membership_tier,
+    DENSE_RANK() OVER (PARTITION BY membership_tier ORDER BY joined_on)
+FROM users;
+
