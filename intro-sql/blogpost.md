@@ -672,25 +672,94 @@ The following figure illustrates the schema of the tables:
 Find all artists in the `United States` born on July 4th who ever released music in language other than `English`. List them in alphabetical order.\
 **Hints**: Only consider the artists with artist type `Person`. `United States` is an area name. If a release is in `[Multiple languages]`, consider it as not `English`.
 ```sql
+WITH consts AS (        -- table with one row
+  SELECT
+    (SELECT id FROM area         WHERE name = 'United States') AS us_id,
+    (SELECT id FROM language     WHERE name = 'English')       AS english_id,
+    (SELECT id FROM artist_type  WHERE name = 'Person')        AS person_type_id
+)
 SELECT A.name AS artist_name
-FROM artist AS A
-JOIN area ON A.area = area.id
-JOIN artist_type AS AT ON A.type = AT.id
-WHERE 
-  -- non-English release
-  A.id IN (
-    SELECT DISTINCT ACN.artist
-    FROM artist_credit_name AS ACN
-        JOIN release AS R ON ACN.artist_credit = R.artist_credit
-        JOIN language AS L ON R.language = L.id
-    WHERE L.name != 'English'
-  )
-  AND area.name = 'United States'
+FROM artist AS A, consts AS C -- cross join 2M x 1
+WHERE A.area = C.us_id
   AND A.begin_date_month = 7
-  AND A.begin_date_day = 4
-  AND AT.name = 'Person'
+  AND A.begin_date_day   = 4
+  AND A.type             = C.person_type_id
+  AND EXISTS (
+    SELECT 1
+    FROM artist_credit_name AS ACN
+    JOIN release AS R ON R.artist_credit = ACN.artist_credit
+    WHERE ACN.artist = A.id
+      AND R.language IS DISTINCT FROM C.english_id  -- treats NULL as non-English
+  )
 ORDER BY A.name;
 ```
+
+Query plan looks like this
+
+```
+Sort  (cost=184307.73..184307.74 rows=1 width=13) (actual time=402.189..410.001 rows=21.00 loops=1)
+  Sort Key: a.name
+  Sort Method: quicksort  Memory: 25kB
+  Buffers: shared hit=15312 read=61239, temp read=16865 written=17192
+  InitPlan 1
+    ->  Seq Scan on area  (cost=0.00..2240.03 rows=1 width=8) (actual time=0.029..9.529 rows=1.00 loops=1)
+          Filter: (name = 'United States'::text)
+          Rows Removed by Filter: 118241
+          Buffers: shared hit=762
+  InitPlan 2
+    ->  Seq Scan on artist_type  (cost=0.00..25.00 rows=6 width=8) (actual time=0.015..0.016 rows=1.00 loops=1)
+          Filter: (name = 'Person'::text)
+          Rows Removed by Filter: 5
+          Buffers: shared hit=1
+  InitPlan 3
+    ->  Seq Scan on language  (cost=0.00..146.04 rows=1 width=8) (actual time=0.714..0.716 rows=1.00 loops=1)
+          Filter: (name = 'English'::text)
+          Rows Removed by Filter: 7842
+          Buffers: shared hit=48
+  ->  Gather  (cost=98439.57..181896.66 rows=1 width=13) (actual time=324.264..409.943 rows=21.00 loops=1)
+            Workers Planned: 2
+            Workers Launched: 2
+            Buffers: shared hit=15312 read=61239, temp read=16865 written=17192
+            ->  Parallel Hash Right Semi Join  (cost=97439.57..180896.56 rows=1 width=13) (actual time=315.113..387.673 rows=7.00 loops=3)
+                  Hash Cond: (acn.artist = a.id)
+                  Buffers: shared hit=14501 read=61239, temp read=16865 written=17192
+                  ->  Parallel Hash Join  (cost=64622.65..137838.70 rows=2730912 width=8) (actual time=238.040..315.214 rows=341033.33 loops=3)
+                        Hash Cond: (r.artist_credit = acn.artist_credit)
+                        Buffers: shared hit=12000 read=44948, temp read=16865 written=17192
+                        ->  Parallel Seq Scan on release r  (cost=0.00..42855.11 rows=1070437 width=8) (actual time=0.111..50.559 rows=286687.33 loops=3)
+                              Filter: (language IS DISTINCT FROM (InitPlan 3).col1)
+                              Rows Removed by Filter: 577000
+                              Buffers: shared hit=3979 read=25381
+                        ->  Parallel Hash  (cost=41112.73..41112.73 rows=1352473 width=16) (actual time=156.983..156.983 rows=1081978.67 loops=3)
+                              Buckets: 262144  Batches: 32  Memory Usage: 6880kB
+                              Buffers: shared hit=8021 read=19567, temp written=14024
+                              ->  Parallel Seq Scan on artist_credit_name acn  (cost=0.00..41112.73 rows=1352473 width=16) (actual time=0.083..58.443 rows=1081978.67 loops=3)
+                                    Buffers: shared hit=8021 read=19567
+                  ->  Parallel Hash  (cost=32816.91..32816.91 rows=1 width=21) (actual time=61.299..61.299 rows=32.33 loops=3)
+                        Buckets: 1024  Batches: 1  Memory Usage: 104kB
+                        Buffers: shared hit=2501 read=16291
+                        ->  Parallel Seq Scan on artist a  (cost=0.00..32816.91 rows=1 width=21) (actual time=4.875..61.018 rows=32.33 loops=3)
+                              Filter: ((area = (InitPlan 1).col1) AND (begin_date_month = 7) AND (begin_date_day = 4) AND (type = (InitPlan 2).col1))
+                              Rows Removed by Filter: 560964
+                              Buffers: shared hit=2501 read=16291
+Planning:
+Buffers: shared hit=16
+Planning Time: 0.380 ms
+Execution Time: 410.072 ms
+(49 rows)
+```
+
+3 `InitPlan`s do sequencial scan on 3 tables, cleanly mapping with `WITH consts`. Notable thing here is all reads here hit cache (`Buffers: shared X`). They all finish within 10 ms (`9.529`). are all three done by one thread? if so, why doesn't actual times follow linear time? 
+
+`Parallel Seq Scan on artist a` is scanning the table artist with 2 workers using the filter condition. It spends ~56 ms (`61.018` - `4.875`) to do this and hits cache 2501 times (recall each pg page is 8KB and cache hit refers to this page), reading from disk 16291 times.  (given two workers (`Workers Launched: 2`), do `rows=32.33 loops=3` mean that each thread produced 32.33 rows per loop iteration and hence outputted 3 * 32.33 * 2 = 194 rows?)
+
+Parent `Parallel Hash` means two workers are building a hashtable (#2) based on Parallel Seq Scan on `artist`. Hash table takes 103kB RAM and is partitioned into 1024 hash buckets. Note that the hash table stores the join key(s) (in the plan: `a.id`) and the associated row payload (the ~21-byte width row, or whichever columns are needed for the join/output). Since `actual time=61.299..61.299` and cache hit is the same with Parallel Seq Scan on `artist`, does it mean that hash table is being built while the sequential scan is ongoing? 
+
+Similar to the above discussion, `Parallel Hash Join` builds a hashtable (#1) on `artist_credit_name` first and then probes it with the output of Parallel Seq Scan on `release`.  
+
+`Parallel Hash Right Semi Join` then probes hashtable #2 (based on `artist`) with the `release x artist_credit_name` output.
+
+`Gather` collects rows from all workers and merges them into a single output, after which `Sort` displays the result set in the specified order.
 
 #### Q3
 Find the ten latest collaborative releases. Only consider the releases with valid release date. Order the results by release date from newest to oldest, and then by release name alphabetically.\
