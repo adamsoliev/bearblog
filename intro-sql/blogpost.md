@@ -862,6 +862,177 @@ Physically, here’s what’s happening:
 * Merges and ranks – The sorted outputs are merged (`Gather Merge`), and the `WindowAgg` node computes `RANK()` per `mf.name`, keeping only `rnk = 1`.
 * Final incremental sort – The remaining rows are incrementally sorted by `format_name` and `release_name`, producing the final ordered result.
 
+#### Q5
+Find the 11 artists who released most christmas songs. For each artist, list their oldest five releases in November with valid release date. Organize the results by the number of each artist's christmas songs, highest to lowest. If two artists released the same number of christmas songs, order them alphabetically. After that, organize the release name alphabetically, and finally by the release date, oldest to newest.
+
+**Details**: Only consider `Person` artists. A release is a `christmas` song if its name contains the word christmas, case-insensitively. When finding the 11 artists, if there's a tie, artists who comes first in alphabetical order takes the priority. A date is valid if it has non-null values for the year, month, and day. When counting the number of christmas songs, simply count the number of distinct release IDs. However, when finding the five oldest releases in November, releases with same name and date are considered the same. If some of the 11 artists wrote releases less than five in November, just include all of them. Format release date in the result as `YYYY-MM-DD`, without adding a leading zero if the month or day is less than `10`.
+
+```sql
+-- Use a CTE to find the top 11 artists based on their Christmas song count
+WITH TopArtists AS (
+    SELECT
+        a.id AS artist_id,
+        a.name AS artist_name,
+        COUNT(DISTINCT r.id) AS christmas_song_count
+    FROM
+      artist AS a
+    JOIN
+      artist_type AS at ON a.type = at.id
+    JOIN
+      artist_credit_name AS acn ON a.id = acn.artist
+    JOIN
+      release AS r ON acn.artist_credit = r.artist_credit
+    WHERE
+      at.name = 'Person' AND
+      r.name ILIKE '%christmas%'
+    GROUP BY
+      a.id, a.name
+    ORDER BY
+      christmas_song_count DESC, a.name ASC
+    LIMIT 11
+)
+-- For each artist from the CTE, find their 5 oldest November releases
+SELECT
+    ta.artist_name,
+    nov_releases.release_name,
+    nov_releases.release_date
+FROM TopArtists AS ta,
+LATERAL (
+    SELECT
+        t.release_name,
+        t.release_date,
+        t.date_year, t.date_month, t.date_day
+    FROM (
+        SELECT DISTINCT -- Ensures releases with the same name and date are treated as one
+            r.name as release_name,
+            (ri.date_year || '-' || ri.date_month || '-' || ri.date_day) AS release_date,
+            ri.date_year, ri.date_month, ri.date_day
+        FROM artist_credit_name acn
+        JOIN release r ON acn.artist_credit = r.artist_credit
+        JOIN release_info ri ON r.id = ri.release
+        WHERE acn.artist = ta.artist_id -- This correlation is the key part of the LATERAL join
+            AND ri.date_month = 11
+            AND ri.date_year IS NOT NULL AND ri.date_month IS NOT NULL AND ri.date_day IS NOT NULL
+    ) AS t
+    ORDER BY t.date_year ASC, t.date_month ASC, t.date_day ASC
+    LIMIT 5
+) AS nov_releases
+-- Apply the final, complex ordering
+ORDER BY
+    ta.christmas_song_count DESC,
+    ta.artist_name ASC,
+    nov_releases.release_name ASC,
+    nov_releases.date_year ASC, nov_releases.date_month ASC, nov_releases.date_day ASC;
+```
+
+Logically, here's what the database is doing:
+
+* In the `TopArtists` CTE, it performs 3 JOIN operations across 4 tables (artist → artist_type, artist → artist_credit_name → release)
+* Filters to artists where `at.name = 'Person'` and their releases match `r.name ILIKE '%christmas%'`
+* Groups by `a.id, a.name` and counts distinct Christmas releases per artist
+* Orders by `christmas_song_count DESC, a.name ASC` and selects the top 11 artists
+* For each of these 11 artists, it executes a correlated LATERAL subquery that:
+  * Performs 2 JOIN operations across 3 tables (artist_credit_name → release → release_info)
+  * Filters to November releases (`ri.date_month = 11`) with complete dates (year, month, and day all NOT NULL)
+  * Applies DISTINCT to deduplicate releases with identical names and dates
+  * Orders by complete date ascending (`date_year ASC, date_month ASC, date_day ASC`)
+  * Returns up to the 5 oldest November releases for that artist
+* Because the LATERAL join is an inner join, artists with fewer than 5 (or zero) November releases will contribute fewer rows (or no rows) to the final result
+* Finally, orders the complete result set by: `christmas_song_count DESC, artist_name ASC, release_name ASC, date_year ASC, date_month ASC, date_day ASC`
+
+```
+Incremental Sort  (cost=210454.47..862909.81 rows=33 width=98) (actual time=2904.868..3329.382 rows=42.00 loops=1)
+   Sort Key: (count(DISTINCT r.id)) DESC, a.name, r_1.name, ri.date_year, ri.date_month, ri.date_day
+   Presorted Key: (count(DISTINCT r.id)), a.name
+   Full-sort Groups: 2  Sort Method: quicksort  Average Memory: 28kB  Peak Memory: 28kB
+   Buffers: shared hit=140916 read=325624
+   ->  Nested Loop  (cost=145209.00..862908.91 rows=33 width=98) (actual time=859.597..3329.328 rows=42.00 loops=1)
+         Buffers: shared hit=140916 read=325624
+         ->  Limit  (cost=73439.06..73439.09 rows=11 width=29) (actual time=599.792..600.172 rows=11.00 loops=1)
+               Buffers: shared hit=42685 read=52939
+               ->  Sort  (cost=73439.06..73439.10 rows=16 width=29) (actual time=599.791..600.170 rows=11.00 loops=1)
+                     Sort Key: (count(DISTINCT r.id)) DESC, a.name
+                     Sort Method: top-N heapsort  Memory: 26kB
+                     Buffers: shared hit=42685 read=52939
+                     ->  GroupAggregate  (cost=73438.42..73438.74 rows=16 width=29) (actual time=598.714..599.921 rows=3107.00 loops=1)
+                           Group Key: a.id, a.name
+                           Buffers: shared hit=42685 read=52939
+                           ->  Sort  (cost=73438.42..73438.46 rows=16 width=29) (actual time=598.706..599.204 rows=5606.00 loops=1)
+                                 Sort Key: a.id, a.name, r.id
+                                 Sort Method: quicksort  Memory: 461kB
+                                 Buffers: shared hit=42685 read=52939
+                                 ->  Nested Loop  (cost=44852.80..73438.10 rows=16 width=29) (actual time=502.098..597.789 rows=5606.00 loops=1)
+                                        Join Filter: (a.type = at.id)
+                                        Rows Removed by Join Filter: 7903
+                                        Buffers: shared hit=42685 read=52939
+                                        ->  Gather  (cost=44852.80..73353.87 rows=658 width=37) (actual time=502.071..595.713 rows=13509.00 loops=1)
+                                              Workers Planned: 2
+                                              Workers Launched: 2
+                                              Buffers: shared hit=42684 read=52939
+                                              ->  Parallel Hash Join  (cost=43852.80..72288.07 rows=274 width=37) (actual time=496.189..589.757 rows=4503.00 loops=3)
+                                                    Hash Cond: (a.id = acn.artist)
+                                                    Buffers: shared hit=42684 read=52939
+                                                    ->  Parallel Seq Scan on artist a  (cost=0.00..25804.45 rows=701245 width=29) (actual time=0.540..66.144 rows=560996.33 loops=3)
+                                                          Buffers: shared hit=212 read=18580
+                                                    ->  Parallel Hash  (cost=43849.38..43849.38 rows=274 width=16) (actual time=495.424..495.425 rows=4503.00 loops=3)
+                                                          Buckets: 16384 (originally 1024)  Batches: 1 (originally 1)  Memory Usage: 920kB
+                                                          Buffers: shared hit=42472 read=34359
+                                                          ->  Nested Loop  (cost=0.43..43849.38 rows=274 width=16) (actual time=1.113..395.339 rows=4503.00 loops=3)
+                                                                Buffers: shared hit=42472 read=34359
+                                                                ->  Parallel Seq Scan on release r  (cost=0.00..42855.11 rows=108 width=16) (actual time=0.736..274.984 rows=3950.67 loops=3)
+                                                                      Filter: (name ~~* '%christmas%'::text)
+                                                                      Rows Removed by Filter: 859737
+                                                                      Buffers: shared hit=1455 read=27905
+                                                                ->  Index Scan using idx_16602_ix_artist_credit_name on artist_credit_name acn  (cost=0.43..9.18 rows=3 width=16) (actual time=0.030..0.030 rows=1.14 loops=11852)
+                                                                      Index Cond: (artist_credit = r.artist_credit)
+                                                                      Index Searches: 11852
+                                                                      Buffers: shared hit=41017 read=6454
+                                        ->  Materialize  (cost=0.00..25.03 rows=6 width=8) (actual time=0.000..0.000 rows=1.00 loops=13509)
+                                              Storage: Memory  Maximum Storage: 17kB
+                                              Buffers: shared hit=1
+                                              ->  Seq Scan on artist_type at  (cost=0.00..25.00 rows=6 width=8) (actual time=0.012..0.012 rows=1.00 loops=1)
+                                                    Filter: (name = 'Person'::text)
+                                                    Rows Removed by Filter: 5
+                                                    Buffers: shared hit=1
+        ->  Limit  (cost=71769.94..71769.94 rows=3 width=77) (actual time=248.102..248.103 rows=3.82 loops=11)
+              Buffers: shared hit=98231 read=272685
+              ->  Sort  (cost=71769.94..71769.94 rows=3 width=77) (actual time=248.101..248.101 rows=3.82 loops=11)
+                    Sort Key: ri.date_year, ri.date_month, ri.date_day
+                    Sort Method: top-N heapsort  Memory: 26kB
+                    Buffers: shared hit=98231 read=272685
+                    ->  Unique  (cost=71769.88..71769.91 rows=3 width=77) (actual time=248.090..248.096 rows=23.91 loops=11)
+                          Buffers: shared hit=98231 read=272685
+                          ->  Sort  (cost=71769.88..71769.88 rows=3 width=77) (actual time=248.089..248.090 rows=46.09 loops=11)
+                                Sort Key: r_1.name, ((((((ri.date_year)::text || '-'::text) || (ri.date_month)::text) || '-'::text) || (ri.date_day)::text)), ri.date_year, ri.date_day
+                                Sort Method: quicksort  Memory: 47kB
+                                Buffers: shared hit=98231 read=272685
+                                ->  Nested Loop  (cost=0.86..71769.85 rows=3 width=77) (actual time=14.636..248.033 rows=46.09 loops=11)
+                                      Buffers: shared hit=98231 read=272685
+                                      ->  Nested Loop  (cost=0.43..71692.47 rows=57 width=29) (actual time=7.436..134.629 rows=948.00 loops=11)
+                                            Buffers: shared hit=68942 read=261975
+                                            ->  Seq Scan on artist_credit_name acn_1  (cost=0.00..68162.20 rows=28 width=8) (actual time=2.361..118.269 rows=549.18 loops=11)
+                                                  Filter: (artist = a.id)
+                                                  Rows Removed by Filter: 3245387
+                                                  Buffers: shared hit=51362 read=252106
+                                            ->  Index Scan using idx_16637_ix_release_artist_credit on release r_1  (cost=0.43..125.74 rows=34 width=37) (actual time=0.024..0.029 rows=1.73 loops=6041)
+                                                  Index Cond: (artist_credit = acn_1.artist_credit)
+                                                  Index Searches: 6041
+                                                  Buffers: shared hit=17580 read=9869
+                                      ->  Index Scan using idx_16642_ix_release_info_release on release_info ri  (cost=0.43..1.35 rows=1 width=32) (actual time=0.119..0.119 rows=0.05 loops=10428)
+                                            Index Cond: (release = r_1.id)
+                                            Filter: ((date_year IS NOT NULL) AND (date_month IS NOT NULL) AND (date_day IS NOT NULL) AND (date_month = 11))
+                                            Rows Removed by Filter: 1
+                                            Index Searches: 10428
+                                            Buffers: shared hit=29289 read=10710
+Planning:
+Buffers: shared hit=48
+Planning Time: 1.404 ms
+Execution Time: 3329.541 ms
+(87 rows)
+```
+
+> A "Materialize" node in an `EXPLAIN ANALYZE` output indicates that the output of a sub-plan is being stored in a temporary area (usually memory or disk) for later reuse by an upstream node.
+
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
 #### WHERE
