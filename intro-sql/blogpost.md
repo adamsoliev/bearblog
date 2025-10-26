@@ -796,12 +796,16 @@ ORDER BY
     release_name;
 ```
 
-Logically, here’s what the database is doing: 
-* Performs an inner join - `release`, `medium` and `medium_format` are all merged based on specified columns.
-* Filters to CD-based formats - the output of the inner join is filtered based on `mf.name`.
-* Calculates a window function - the output is partitioned by `mf.name` and each row is ranked within partition. 
-* Filters to the longest names - the outer query picks the `rnk=1` from each partition.
-* Orders - the final result set is ordered by `format_name` and `release_name`.
+Logically, here's what the database is doing:
+* Performs 2 JOIN operations across 3 tables (release → medium → medium_format) using inner joins
+* Filters the joined result set to rows where `mf.name LIKE '%CD%'` (CD-based formats only)
+* In the `RankedReleases` CTE, calculates a window function that:
+  * Partitions the filtered data by `mf.name` (grouping by format)
+  * Within each partition, assigns ranks using `RANK()` based on `LENGTH(r.name) DESC` (longest names first)
+  * Note: `RANK()` assigns the same rank to releases with identical name lengths and creates gaps in the sequence (e.g., if two releases tie at rank 1, the next rank is 3)
+* The outer query filters to `rnk = 1`, selecting all releases that have the longest name(s) within each CD format partition
+* *Important*: If multiple releases within a format have the same maximum name length, all of them are included (not just one per format)
+* Orders the final result set by `format_name ASC, release_name ASC`
 
 ```
 Incremental Sort  (cost=157071.39..267558.33 rows=3704 width=32) (actual time=704.939..951.069 rows=103.00 loops=1)
