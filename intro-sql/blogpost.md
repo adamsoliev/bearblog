@@ -438,9 +438,7 @@ UNION or UNION ALL
 recursive term
 ```
 
-The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. 
-
-In a recursive CTE, the UNION or UNION ALL operator combines rows vertically, stacking the initial anchor query results with the iterative results from the recursive member. A good mental model is an iterative loop: the anchor query runs once, its results are used by the recursive query, and those new results are added to the set for the next iteration until no new rows are returned. UNION ALL is faster because it simply concatenates all rows, while UNION performs an additional, costly step to remove duplicates.
+The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. UNION or UNION ALL operators can be thought of as combining the base query results and the iterative results vertically. Note that UNION ALL is faster because it simply concatenates all rows, while UNION performs an additional, costly step to remove duplicates.
 
 Here is the query that uses the library table to walk through branches in the order they opened:
 ```sql
@@ -539,7 +537,7 @@ If `ROWS/RANGE/GROUPS` is omitted, most databases default to:
 RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW   -- all rows from the start of the partition up to the current one
 ```
 
-> Note: The concept of a “current row” only makes sense when an `ORDER BY` is present. 
+> The concept of a “current row” only makes sense when an `ORDER BY` is present. 
 > Without `ORDER BY`, there is no defined order within a partition, so the window frame automatically includes all rows in the partition.
 
 PostgreSQL (and the SQL standard) support `FILTER` ( `WHERE` filter_clause ) that lets you apply a condition inside an aggregate or window function:
@@ -763,6 +761,14 @@ Logically, here's what the database is doing:
 * *Important*: If multiple releases within a format have the same maximum name length, all of them are included (not just one per format)
 * Orders the final result set by `format_name ASC, release_name ASC`
 
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/advanced_example2_query_plan.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+</div>
+
+<details>
+<summary>Click to view the full query plan</summary>
+<div class="highlight">
+<pre>
 ```
 Incremental Sort  (cost=157071.39..267558.33 rows=3704 width=32) (actual time=704.939..951.069 rows=103.00 loops=1)
    Sort Key: rankedreleases.format_name, rankedreleases.release_name
@@ -814,6 +820,9 @@ Planning Time: 6.842 ms
 Execution Time: 952.429 ms
 (48 rows)
 ```
+</pre>
+</div>
+</details>
 
 Physically, here’s what’s happening:
 * Builds hash tables – PostgreSQL first scans `medium_format`, filters to names matching `'%CD%'`, and builds a small in-memory hash table. It then scans `release` in parallel, building a much larger hash table that’s partially spilled to disk.
