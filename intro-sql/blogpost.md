@@ -2,9 +2,7 @@
 * [What and why](#what-and-why)
 * [Relational Model](#relational-model)
 * [Basic SQL](#basic-sql)
-  * [SELECT](#select)
-  * [FROM](#from)
-  * [WHERE](#where)
+  * [SELECT-FROM-WHERE](#select-from-where)
   * [ORDER BY](#order-by)
   * [LIMIT AND OFFSET](#limit-and-offset)
   * [GROUP BY](#group-by)
@@ -19,7 +17,7 @@
 ---
 
 # <a id="what-and-why" href="#table-of-contents">What and why</a>
-This is my introduction to SQL. I start from the relational model — the theory SQL is built on — then shift to the user’s point of view, walking through queries from basic to advanced. In the basic section, I explain each clause using a simple query and how that clause fits into SQL’s logical flow. In the advanced section, I break down how complex queries are executed logically and physically. The post ends with a look at SQL performance.
+This is my introduction to SQL. I start from the relational model and then shift to the user’s point of view, walking through queries from basic to advanced. I use basic queries to explain different clauses and how each fits into SQL’s logical flow. In the advanced section, I break down how complex queries are executed logically and physically. The post ends with a look at SQL performance.
 
 I wrote this mostly to clarify my thinking. Along the way, I cut what’s easy to find elsewhere and kept what took effort to learn. If you have thoughts or feedback, please reach out :)
 
@@ -59,20 +57,20 @@ This data independence then provided a basis for high-level query languages. Thi
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
-SQL covers several kinds of tasks, often grouped into four main categories:
-- DQL (data query language) - Extracts data from tables. (e.g., `SELECT`)
-- DDL (data definition language) - Defines and modifies database structures. (e.g., `CREATE`, `ALTER`, `DROP`)
-- DCL (data control language) - Manages user access and permissions. (e.g., `GRANT`, `REVOKE`)
-- DML (data manipulation language) - Inserts, updates, or deletes table data. (e.g., `INSERT`, `UPDATE`, `DELETE`)
+SQL is often divided into four sublanguages:
+- extracting data from tables (eg `SELECT`).
+- defining and modifying database objects (eg `CREATE`, `ALTER`, `DROP`).
+- managing user access and permissions (eg `GRANT`, `REVOKE`).
+- inserting, updating, or deleting table data (eg `INSERT`, `UPDATE`, `DELETE`).
 
-In the rest of this blogpost, the focus is on DQL, since querying is where most of the real-world effort — and much of SQL’s expressive power — lies. The examples rely on the following library lending dataset, consisting of `users`, `library`, and `books` tables. 
+In this intro, I mainly focus on the first, as that's where most of the complexity and confusion lie. All examples will use the PostgreSQL dialect of SQL and rely on the following schema.
 
 ```sql
 CREATE TABLE users (
     user_id INTEGER PRIMARY KEY,
     full_name TEXT NOT NULL,
     joined_on DATE NOT NULL,
-    membership_tier TEXT NOT NULL
+    membership_tier TEXT NOT NULL                       -- standard, premium, student
 );
 
 CREATE TABLE library (
@@ -89,50 +87,26 @@ CREATE TABLE books (
     author TEXT NOT NULL,
     genre TEXT NOT NULL,
     published_year INTEGER NOT NULL,
-    checked_out_by INTEGER REFERENCES users (user_id)
+    checked_out_by INTEGER REFERENCES users (user_id)   -- null if unchecked
 );
-
-INSERT INTO users (user_id, full_name, joined_on, membership_tier)
-VALUES
-    (1, 'Alice Smith', '2022-01-04', 'STANDARD'),
-    (2, 'Brianna Diaz', '2022-03-12', 'PREMIUM'),
-    (3, 'Chandra Iyer', '2022-07-19', 'PREMIUM'),
-    (4, 'Dmitri Volkov', '2023-02-08', 'STANDARD'),
-    (5, 'Evelyn Harper', '2023-05-23', 'STUDENT'),
-    (6, 'Farah Nasser', '2023-09-14', 'STANDARD');
-
-INSERT INTO library (library_id, branch_name, city, opened_on)
-VALUES
-    (1, 'Central Library', 'Boston', '2010-01-15'),
-    (2, 'Riverside Branch', 'Portland', '2012-06-20'),
-    (3, 'Innovation Hub', 'Austin', '2015-03-30'),
-    (4, 'Harbor Reading Room', 'Seattle', '2016-11-05'),
-    (5, 'Southside Learning Center', 'Chicago', '2018-04-18'),
-    (6, 'Uptown Collection', 'Denver', '2019-09-09');
-
-INSERT INTO books (book_id, library_id, title, author, genre, published_year, checked_out_by)
-VALUES
-    (1, 1, 'War and Peace', 'Leo Tolstoy', 'Literature', 1869, 2),
-    (2, 1, 'Anna Karenina', 'Leo Tolstoy', 'Literature', 1877, NULL),
-    (3, 2, 'Crime and Punishment', 'Fyodor Dostoevsky', 'Literature', 1866, 4),
-    (4, 3, 'The Brothers Karamazov', 'Fyodor Dostoevsky', 'Literature', 1880, NULL),
-    (5, 5, 'The Cherry Orchard', 'Anton Chekhov', 'Drama', 1904, 1),
-    (6, 6, 'One Day in the Life of Ivan Denisovich', 'Alexander Solzhenitsyn', 'Historical Fiction', 1962, 3);
 ```
 
 <!-- /////////////////// -->
-<!-- SELECT -->
+<!-- SELECT-FROM-WHERE -->
 <!-- /////////////////// -->
-### <a id="select" href="#table-of-contents">SELECT</a>
+### <a id="select-from-where" href="#table-of-contents">SELECT-FROM-WHERE</a>
 
-Most people think of `SELECT` as “picking columns” from a table — and at the surface, that’s true. You write
+#### SELECT
+
+In SQL, the `SELECT-FROM-WHERE` block forms a basic query by specifying which columns to `SELECT` from a particular table (`FROM`) and filtering for rows that satisfy one or more conditions (`WHERE`).
+
 ```sql
 SELECT title, author 
-FROM books;
+FROM books
+WHERE genre='Non-fiction';
 ```
-and get just those two columns. But under the hood, `SELECT` doesn’t actually retrieve columns — it produces rows. It’s the way of constructing a new table: starting from rows in the `FROM` clause, filtering them with `WHERE`, grouping them with `GROUP BY`, etc and finally returning the resulting rows. The columns you write in `SELECT` merely define the shape of those output rows.
 
-Each "column" in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression or an aggregate/scalar function. You can also rename any column using `AS` with an alias for clarity or reuse. For example, 
+Each column in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression or an aggregate/scalar function. You can also rename any column using `AS` with an alias for clarity or reuse. For example, 
 ```sql
 SELECT
     title,                                              -- base column
@@ -140,7 +114,8 @@ SELECT
     published_year + 1 AS next_publication_year,        -- expression
     upper(author) AS author_upper                       -- scalar function
 FROM
-    books;
+    books
+WHERE genre='Non-fiction';
 ```
 
 Modern databases make it easy to perform substantial data transformation right inside `SELECT`, reducing the need to handle that logic in application code. Suppose you want to surface who currently has each book and render a status with some additional info:
@@ -156,22 +131,15 @@ SELECT
     END AS circulation_status,
     (make_date(b.published_year, 1, 1) + INTERVAL '150 years')::date AS public_domain_anniversary,
     to_char(make_date(b.published_year, 1, 1), 'YYYY-Mon-DD') AS publication_year_formatted
-FROM books AS b;
+FROM books AS b
+WHERE genre='Non-fiction';
 ```
 
-The result table now contains transformed values like 
-| | | | | | | |
-|-|-|-|-|-|-|-| 
-| The Cherry Orchard | DRAMA | Anton_Chekhov | 1 | checked out | 2054-01-01 | 1904-Jan-01 |
+#### FROM
 
-<!-- /////////////////// -->
-<!-- FROM -->
-<!-- /////////////////// -->
-### <a id="from" href="#table-of-contents">FROM</a>
+Each table in `FROM` can be a base table, a derived table (created with a subquery like `(SELECT …)`), a join, or a combination of these.
 
-The `FROM` clause defines *where* your data comes from. Each source can be a base table, a derived table (created with a subquery like `(SELECT …)`), a join, or a combination of these.
-
-You can also specify *how* these sources relate to each other using a join condition — written with `ON`, or its shorthand forms `USING` and `NATURAL`:
+You can also specify *how* these tables relate to each other using a join condition — written with `ON`, or its shorthand forms `USING` and `NATURAL`:
 
 ```
 T1 { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2 ON boolean_expression
@@ -180,7 +148,7 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 ```
 `INNER` and `OUTER` are optional; `INNER` is the default. `LEFT`, `RIGHT`, and `FULL` all imply outer joins.
 
-#### Join types
+Join types
 * `INNER JOIN` keeps only rows that match on both sides.
 * `LEFT JOIN` keeps all rows from the left table and fills in columns from the right table only when you have a match, otherwise using NULL as the column values.
 * `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
@@ -188,32 +156,9 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 * `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
-#### Old join syntax vs SQL92
+> Before the SQL-92 standard introduced the `JOIN...ON` syntax, tables were joined by listing them in the `FROM` clause and placing the join logic in the `WHERE` clause.
 
-> This distinction still surfaces in older tutorials and legacy code, so it’s worth being aware.
-
-Before SQL-92, joins were written by listing tables separated with commas and moving the join condition to the `WHERE` clause:
-
-```sql
-SELECT
-    b.title,
-    u.full_name
-FROM books AS b, users AS u
-WHERE u.user_id = b.checked_out_by;
-```
-
-It works, but the relationship between tables is easy to miss and outer joins require vendor-specific extensions. SQL-92 introduced explicit join operators that keep the join condition next to the tables being combined:
-
-```sql
-SELECT
-    b.title,
-    u.full_name
-FROM books AS b
-INNER JOIN users AS u
-    ON u.user_id = b.checked_out_by;
-```
-
-#### Join conditions
+Join conditions
 * `ON` defines how rows from the two tables are matched and filtered. In contrast, `WHERE` (covered next) is also a filter, but it applies after the join output is produced. Here’s a basic `ON` example that pairs each checked-out book with its holder and displays those in the literature genre.
   ```sql
   SELECT *
@@ -233,12 +178,9 @@ INNER JOIN users AS u
       NATURAL JOIN library;  
   ```
   
-<!-- /////////////////// -->
-<!-- WHERE -->
-<!-- /////////////////// -->
-### <a id="where" href="#table-of-contents">WHERE</a>
+#### WHERE
 
-`WHERE` clause filters rows produced by the `FROM` clause. Each row is checked against the condition: if it evaluates to true, the row is kept; if false or null, it's discarded.
+`WHERE` clause filters rows produced by the `FROM` clause. Each row is checked against the condition: if it evaluates to true, the row is kept; if false or **null**, it's discarded.
 
 ```sql
 SELECT title
@@ -254,7 +196,7 @@ FROM books
 WHERE genre='Literature' AND published_year=1869;
 ```
 
-#### Subquery expressions
+Subquery expressions
 * `EXISTS` checks whether a subquery returns at least one row for the current row of the outer query.
     ```sql
     SELECT u.full_name
