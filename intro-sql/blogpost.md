@@ -1,7 +1,6 @@
 #### Table of Contents
 * [What and why](#what-and-why)
 * [Relational Model](#relational-model)
-* [Relational algebra and calculus](#relational-algebra-and-calculus)
 * [Basic SQL](#basic-sql)
   * [SELECT](#select)
   * [FROM](#from)
@@ -20,9 +19,9 @@
 ---
 
 # <a id="what-and-why" href="#table-of-contents">What and why</a>
-This is my introduction to SQL. I start from the relational model — the theory SQL is built on — then shift to the user’s point of view, walking through queries from basic to advanced. In the basic section, I explain each clause using a simple query and how that clause fits into SQL’s logical flow. In the advanced section, I break down complex queries visually and step by step. The post ends with a look at SQL performance.
+This is my introduction to SQL. I start from the relational model — the theory SQL is built on — then shift to the user’s point of view, walking through queries from basic to advanced. In the basic section, I explain each clause using a simple query and how that clause fits into SQL’s logical flow. In the advanced section, I break down how complex queries are executed logically and physically. The post ends with a look at SQL performance.
 
-I wrote this mostly to clarify my own understanding. Along the way, I cut what’s easy to find elsewhere and kept what took effort to learn. If you have thoughts or feedback, I’d love to hear them.
+I wrote this mostly to clarify my thinking. Along the way, I cut what’s easy to find elsewhere and kept what took effort to learn. If you have thoughts or feedback, please reach out :)
 
 # <a id="relational-model" href="#table-of-contents">Relational model</a>
 
@@ -33,33 +32,30 @@ Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation 
 For example, imagine you have three sets:
 
 * **$S_1 = \{12, 75, 32, 54, 98\}$** (a set of IDs)
-* **$S_2 = \{"A", "B", "C", "D", "E"\}$** (a set of names)
+* **$S_2 = \{"John", "Michael", "Saun"\}$** (a set of names)
 * **$S_3 = \{2023$-$10$-$02, 2022$-$07$-$11, 2025$-$01$-$12, 2019$-$03$-$27, 2026$-$12$-$03\}$** (a set of dates)
 
 A possible table $R$ on these three sets could be:
 
 | ID | Name | Date |
 |---|---|---|
-| 12 | "A" | 2023-10-02 |
-| 75 | "C" | 2022-07-11 |
-| 32 | "E" | 2019-03-27 |
+| 12 | Michael | 2023-10-02 |
+| 75 | Michael | 2022-07-11 |
+| 32 | John | 2022-07-11 |
 
-Here, $R$ has three rows – each consisting of the same columns (`ID`, `Name`, `Date`). Each column is of a specific data type (`INTEGER`, `TEXT`, `DATE`). Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
+Each of the three rows of $R$ consist of the same columns (`ID`, `Name`, `Date`). Each column is of a specific data type (`INTEGER`, `TEXT`, `DATE`). Whereas columns have a fixed order in each row, the order of the rows within the table isn't guaranteed in any way (although they can be explicitly sorted for display).
 
-To connect information across tables, the relational model relies on 'key' columns:
-* a **primary key** uniquely identifies each row within a table (e.g., ID in the relation $R$).
-* a **foreign key** creates a logical link to a primary key in another table, allowing data in one table to reference data in another.
+The relational model would treat the `ID` column in $R$ as the **primary key** because it uniquely identifies each row. In practice, a primary key can also span multiple columns, as long as their combination remains unique. Another table, say $N$, could include a column that stores values matching `ID` in $R$. This column would serve as a **foreign key**, creating a logical link between a row in $R$ and a row in $N$.
 
-With this solid theoretical foundation and some practical departures from pure theory, the relational model achieved the right abstraction that enabled two defining properties in database systems:
-* **declarative querying**: users specify what data they want, not how to retrieve it.
-* **data independence**: applications describe data logically, while the database decides how to store and access it.
+Formally, the relational model is much more involved but its practical application boils down to the above ideas, namely: 
+* data is organized as tables 
+* each row within a table is unique 
+* the order of columns is fixed
+* tables reference each other using foreign keys
 
-# <a id="relational-algebra-and-calculus" href="#table-of-contents">Relational algebra and calculus</a>
-Simply put, relational algebra (RA) and calculus (RC) are the mathematical languages of the relational model. They answer the question: if data is stored as tables, what does it mean to “operate” on them? 
+This turned out to be the right abstaction for databases, providing a maximum degree of data independence (separating the logical view of data from its physical storage) and effectively solves issues of data inconsistency.
 
-RA provides a set of operators - `SELECT`, `PROJECT` and others - that transform relations step by step, much like +, -, /, * in arithmetic, except that they act on tables rather than numbers. RC, by contrast, describes the conditions rows must satisfy, without prescribing steps. 
-
-SQL was inspired by both RA and RC. Yet SQL is not a strict disciple of either: it allows duplicates rows, NULLs, and implicit ordering - features absent from the original theory. It became the first successful language to separate “what” and “how”.
+This data independence then provided a basis for high-level query languages. This evolution started with languages like COLARD and RIL, which were based on predicate calculus. These later inspired SQUARE, which still relied on the terse mathematical notation [sequel paper](), and eventually led to SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today.
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
@@ -709,15 +705,13 @@ Logically, here's what the database is doing:
 
 Key detail: `IS DISTINCT FROM` is NULL-safe comparison that returns TRUE when values differ or when exactly one side is NULL, ensuring NULL languages are treated as non-English.
 
-Physically, the database executes things differently than the above conceptual evaluation for efficiency. You can see that by examining the execution plan (generated by prefixing the query with `EXPLAIN ANALYZE`):
-
-The following figure illustrates the query plan:
+Physically, the database executes things differently than the above conceptual evaluation for efficiency. You can see that by examining the execution plan (generated by prefixing the query with `EXPLAIN ANALYZE`), which is illustrated below:
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/advanced_example1_query_plan.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
 <details>
-<summary>Click to view the full query plan (49 rows)</summary>
+<summary>Click to view the full query plan</summary>
 <div class="highlight">
 <pre>
   Sort  (cost=184307.73..184307.74 rows=1 width=13) (actual time=402.189..410.001 rows=21.00 loops=1)
