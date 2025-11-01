@@ -17,7 +17,7 @@
 ---
 
 # <a id="what-and-why" href="#table-of-contents">What and why</a>
-This is my introduction to SQL. I start from the relational model and then shift to the user’s point of view, walking through queries from basic to advanced. I use basic queries to explain different clauses and how each fits into SQL’s logical flow. In the advanced section, I break down how complex queries are executed logically and physically. The post ends with a look at SQL performance.
+This is my introduction to SQL. Unlike countless other intros, I try to explain the language in a less superficial way, starting from the relational model and then shifting to the user’s point of view, walking through queries from basic to advanced. I use basic queries to explain different clauses and how each fits into SQL’s logical flow. In the advanced section, I break down how complex queries are executed: first logically (the conceptual, step-by-step order of operations) and then physically (what databases actually execute). The post ends with a look at SQL performance.
 
 I wrote this mostly to clarify my thinking. Along the way, I cut what’s easy to find elsewhere and kept what took effort to learn. If you have thoughts or feedback, please reach out :)
 
@@ -762,7 +762,6 @@ Physically,
 <summary>Click to view the full query plan</summary>
 <div class="highlight">
 <pre>
-```
 Incremental Sort  (cost=157071.39..267558.33 rows=3704 width=32) (actual time=704.939..951.069 rows=103.00 loops=1)
    Sort Key: rankedreleases.format_name, rankedreleases.release_name
    Presorted Key: rankedreleases.format_name
@@ -812,7 +811,6 @@ Buffers: shared hit=71 read=20
 Planning Time: 6.842 ms
 Execution Time: 952.429 ms
 (48 rows)
-```
 </pre>
 </div>
 </details>
