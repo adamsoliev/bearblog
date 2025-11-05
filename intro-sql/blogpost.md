@@ -589,10 +589,10 @@ Using `=` or `<>` won’t work, since `NULL` is never equal or not equal to anyt
 A few important takeaways:
 * An expression can be `NULL`, but it can never equal `NULL`.
 * Two `NULL`s are not equal in normal comparisons, but are equal under `IS [NOT] DISTINCT FROM`.
-* When testing numeric ranges, you must handle nulls explicitly.
-* Aggregate functions ignore nulls except `COUNT(*)`, which counts every row regardless of column nulls.
+* When testing numeric ranges, you must handle `NULL`s explicitly.
+* Aggregate functions ignore `NULL`s except `COUNT(*)`, which counts every row regardless of column nulls.
 
-To prevent `NULL` values in the first place, declare columns as `NOT NULL` in `CREATE TABLE`, even if you also provide a default value. This constraint enforces that the column can never store unknown data.
+To prevent `NULL` values in the first place, declare columns as `NOT NULL` in `CREATE TABLE`, even if you provide a default value. This constraint enforces that the column can never store unknown data.
 
 ---
 
@@ -711,7 +711,11 @@ Here’s what’s actually happening under the hood:
 * Joins results — the combined `release × artist_credit_name` output is then used to probe the second hash table built from `artist`, returning only those artists that have at least one release in a non-English language
 * Gathers and sorts — finally, all worker threads send their results to the `Gather` process, which merges them and sorts the artist names alphabetically
 
-From the database's perspective, this plan reveals three important decisions. The first is the scan method, where it chose Sequential Scans for all tables, meaning it's reading all the data from top to bottom. The second key decision is the join method; it exclusively selected Hash Joins over other options like Nested Loop or Merge Joins. Finally, and perhaps most importantly, is the chosen join order, where the database opted to join `release` and `artist_credit_name` first, before joining that combined result with the `artist` table.
+A couple of things to note in the full query plan. First, the `Filter` node is the least efficient way to filter data. It means PostgreSQL is reading every single row from the table and only then checking if the row matches the `WHERE` clause conditions, discarding most of them after doing all the work to read them. A much better alternative, which a proper index would enable, is for the database to apply those conditions at the index level either as access predicate or filter predicate:   
+* Access Predicates: If your `WHERE` clause uses the leading column(s) of an index (e.g., `WHERE A = value1` on an `(A, B, C)` index), the database uses `A = value1` as an access predicate. It can instantly seek within the B-tree to the exact start and end of the relevant data. This is the most efficient way to limit the search space.
+* Filter Predicates: This is what happens when your `WHERE` clause uses a non-leading column without constraining all the columns before it (e.g., `WHERE A = value1 AND C = value2` on an `(A, B, C)` index). The database uses `A = value1` as an access predicate to find the range of index entries to scan. Then, as it scans through that range, it applies `C = value2` as a filter predicate. It checks the value of `C` within each index entry and discards those that don't match before it ever fetches the corresponding row from the main table.
+
+Second, this plan illustrates the three fundamental decisions the query planner makes when building an execution plan. The first is the scan method, where you can see it chose `Sequential Scans` for all tables, meaning it's reading the table from top to bottom. The second key decision is the join method; it exclusively selected `Hash Joins` over other options like `Nested Loop` or `Merge Joins`. Finally, and most importantly, is the join order, where the database opted to join `release` and `artist_credit_name` first, before joining that combined result with the `artist` table.
 
 #### Q4
 List the releases with the longest names in each CD-based medium format. Sort the result alphabetically by medium format name, and then release name. If there is a tie, include them all in the result.\
