@@ -827,6 +827,12 @@ Execution Time: 952.429 ms
 
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
+SQL performance when it comes to extracting data from tables is all about proper indexing. Indexing in this context means creating a separate data structure, similar to the index at the end of a book, based on how your application queries the data. An index requires its own disk space and holds a copy of the indexed table data, referring to the rest of the table information stored in a different place. B-tree index is the most important index.
+
+<div style="text-align: left;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/btree.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+</div>
+
 #### WHERE
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
 
