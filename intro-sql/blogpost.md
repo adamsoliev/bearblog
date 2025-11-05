@@ -827,11 +827,30 @@ Execution Time: 952.429 ms
 
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
-SQL performance when it comes to extracting data from tables is all about proper indexing. Indexing in this context means creating a separate data structure, similar to the index at the end of a book, based on how your application queries the data. An index requires its own disk space and holds a copy of the indexed table data, referring to the rest of the table information stored in a different place. B-tree index is the most important index. Below is an example of such B-tree index.
+This section covers optimizing data retrieval operations like `SELECT` queries. Performance for these operations is solely reliant on proper indexing. An index here is a separate data structure that speeds up lookups, much like the index at the end of a book. It consumes disk space, storing a copy of the indexed column(s) and a pointer to the full row.
+
+The most common and important index is the B-Tree. The figure below shows a simplified example.
 
 <div style="text-align: left;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/intro-sql/images/btree.png?raw=true" alt="first example" style="border: 1px solid black;">
 </div>
+
+At the bottom of the B-tree are the leaf nodes, which contain the logically-ordered indexed column values and row references. These leaf nodes form a doubly linked list, allowing the database to efficiently support both point queries (finding a single value) and range queries (finding all values between two bounds).
+
+Above the leaves is a balanced tree of branch (internal) nodes, which guide the search. The database starts at the root, follows the appropriate branches based on value comparisons, and eventually reaches the correct leaf.
+
+For example, to find a row with column value 56, the database:
+1. Starts at the root, examining 45 and 78,
+2. Follows the branch for 78, checking 51 and 60,
+3. Follows 60 to the leaf node, landing on 53 and finally finding 56,
+4. Retrieves the row from the main table using the row ID (`dk1`) stored in the leaf.
+
+In short, each query using an index typically performs:
+1. A tree traversal to locate the search range,
+2. A leaf-node chain scan (especially for range queries), and
+3. A table lookup to fetch the full row data.
+
+Effective optimization means designing indexes that minimize unnecessary work in steps (2) and (3).
 
 #### WHERE
 Keep filters simple so that the database can match them against indexes and avoid expensive full-table scans.
