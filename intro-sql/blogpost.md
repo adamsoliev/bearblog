@@ -11,7 +11,6 @@
   * [NULL PITFALLS](#null-pitfalls)
 * [Advanced queries walkthrough](#advanced-queries-walkthrough)
 * [Optimizations](#optimizations)
-* [Conclusion](#conclusion)
 * [References](#references)
 
 ---
@@ -23,7 +22,7 @@ I wrote this mostly to clarify my thinking. Along the way, I cut what’s easy t
 
 # <a id="relational-model" href="#table-of-contents">Relational model</a>
 
-The relational model is built on a simple idea borrowed from mathematics: a relation is just a set of tuples.
+The relational model is built on a simple idea borrowed from mathematics: a relation is just a set of tuples [^1].
 
 Formally, given sets $S1$, $S2$, $\dots$, $Sn$ (called **domains**), a relation $R$ on these sets is any set of $n$-tuples where each tuple’s first value comes from $S1$, its second from $S2$, and so on. In database terms, a relation is a **table**, a tuple is a **row**, and the sets $S1$, $S2$, $\dots$, $Sn$ define the permissible values for each column.
 
@@ -53,7 +52,7 @@ Formally, the relational model is much more involved but its practical applicati
 
 This turned out to be the right abstaction for databases, providing a maximum degree of data independence (separating the logical view of data from its physical storage) and effectively solves issues of data inconsistency.
 
-This data independence then provided a basis for high-level query languages. This evolution started with languages like COLARD and RIL, which were based on predicate calculus. These later inspired SQUARE, which still relied on the terse mathematical notation [sequel paper](), and eventually led to SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today.
+This data independence then provided a basis for high-level query languages. This evolution started with languages like COLARD and RIL, which were based on predicate calculus. These later inspired SQUARE, which still relied on the terse mathematical notation, and eventually led to SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today [^2].
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
@@ -96,8 +95,6 @@ CREATE TABLE books (
 <!-- /////////////////// -->
 ### <a id="select-from-where" href="#table-of-contents">SELECT-FROM-WHERE</a>
 
-#### SELECT
-
 In SQL, the `SELECT-FROM-WHERE` block forms a basic query by specifying which columns to `SELECT` from a particular table (`FROM`) and filtering for rows that satisfy one or more conditions (`WHERE`).
 
 ```sql
@@ -105,6 +102,8 @@ SELECT title, author
 FROM books
 WHERE genre='Non-fiction';
 ```
+
+#### SELECT
 
 Each column in `SELECT` can be sourced from a base table (created with `CREATE TABLE`), a literal value, an expression or an aggregate/scalar function. You can also rename any column using `AS` with an alias for clarity or reuse. For example, 
 ```sql
@@ -156,8 +155,6 @@ Join types
 * `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
 * `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
 
-> Before the SQL-92 standard introduced the `JOIN...ON` syntax, tables were joined by listing them in the `FROM` clause and placing the join logic in the `WHERE` clause.
-
 Join conditions
 * `ON` defines how rows from the two tables are matched and filtered. In contrast, `WHERE` (covered next) is also a filter, but it applies after the join output is produced. Here’s a basic `ON` example that pairs each checked-out book with its holder and displays those in the literature genre.
   ```sql
@@ -177,6 +174,8 @@ Join conditions
   FROM books
       NATURAL JOIN library;  
   ```
+  
+> Before the SQL-92 standard introduced the `JOIN...ON` syntax, tables were joined by listing them in the `FROM` clause and placing the join logic in the `WHERE` clause.
   
 #### WHERE
 
@@ -268,7 +267,7 @@ Subquery expressions
   
 --- 
 
-==Now that you understand `FROM` (which tables to get data from), `WHERE` (how to filter rows), and `SELECT` (which columns to output), what do you think is the logical order in which a database executes them?==[^1]
+==Now that you understand `FROM` (which tables to get data from), `WHERE` (how to filter rows), and `SELECT` (which columns to output), what do you think is the logical order in which a database executes them?==[^3]
 
 ---
 
@@ -408,7 +407,7 @@ GROUP BY CUBE (l.branch_name, b.genre);
 
 ---
 
-==Now that you understand `ORDER BY`, `LIMIT/OFFSET`, and `GROUP BY` in addition to `FROM`, `SELECT` and `WHERE`, what do you think is the logical order in which a database executes all of them?==[^2]
+==Now that you understand `ORDER BY`, `LIMIT/OFFSET`, and `GROUP BY` in addition to `FROM`, `SELECT` and `WHERE`, what do you think is the logical order in which a database executes all of them?==[^4]
 
 ---
 
@@ -438,7 +437,9 @@ UNION or UNION ALL
 recursive term
 ```
 
-The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. UNION or UNION ALL operators can be thought of as combining the base query results and the iterative results vertically. Note that UNION ALL is faster because it simply concatenates all rows, while UNION performs an additional, costly step to remove duplicates.
+The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. 
+
+`UNION` or `UNION ALL` operators can be thought of as combining the base query results and the iterative results vertically. Note that `UNION ALL` is faster because it simply concatenates all rows, while `UNION` performs an additional, costly step to remove duplicates.
 
 Here is the query that uses the library table to walk through branches in the order they opened:
 ```sql
@@ -480,9 +481,7 @@ Recursive CTEs are most often used to work with hierarchical or graph-like data.
 <!-- /////////////////// -->
 ### <a id="window-functions" href="#table-of-contents">WINDOW FUNCTIONS</a>
 
-A window function performs a calculation across a set of rows that are somehow related to the current row. It's similar to an aggregate function, except that it does not collapse rows into a single result. It operates on rows of the "virtual table" produced by the query's FROM clause as filtered by its WHERE, GROUP BY, and HAVING clauses if any.
-
-General form:
+A window function performs a calculation across a set of rows that are somehow related to the current row. It's similar to an aggregate function, except that it does not collapse rows into a single result. Its general form:
 ```sql
 FUNCTION_NAME(arguments) OVER ( [PARTITION BY ...] [ORDER BY ...] [ROWS/RANGE/GROUPS ...] )
 ```
@@ -540,7 +539,7 @@ RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW   -- all rows from the start o
 > The concept of a “current row” only makes sense when an `ORDER BY` is present. 
 > Without `ORDER BY`, there is no defined order within a partition, so the window frame automatically includes all rows in the partition.
 
-PostgreSQL (and the SQL standard) support `FILTER` ( `WHERE` filter_clause ) that lets you apply a condition inside an aggregate or window function:
+PostgreSQL (and the SQL standard) support `FILTER` (`WHERE` filter_clause) that lets you apply a condition inside an aggregate or window function:
 ```sql
 SUM(amount)  FILTER (WHERE type = 'sale') OVER (...)                -- PostgreSQL
 
@@ -548,7 +547,7 @@ SUM(CASE WHEN type = 'sale' THEN amount ELSE NULL END) OVER (...)   -- generaliz
 ```
 As you can see above, `FILTER` is syntactic sugar for a conditional aggregation using a `CASE` statement inside the function.
 
-`WINDOW` allows you to predefine a window and use it in various places in the query. 
+`WINDOW` allows you to predefine a window and use it in various places in the query. This keeps queries concise and consistent when several functions share the same window definition.
 ```sql
 SELECT
     b.author,
@@ -561,7 +560,6 @@ WINDOW
     author_titles AS (PARTITION BY b.author),
     author_chronology AS (author_titles ORDER BY b.published_year);
 ```
-This keeps queries concise and consistent when several functions share the same window definition.
 
 <!-- /////////////////// -->
 <!-- NULL -->
@@ -853,7 +851,6 @@ In short, each query using an index typically performs:
 Effective optimization then means designing indexes that get utilized as much as possible and minimize unnecessary work in steps (2) and (3).
 
 #### WHERE
-
 The `WHERE` clause defines an SQL query's search condition and is therefore where an index is most often useful. Below is a list of practices that reduce an index's usefulness.    
 
 Combined conditions (eg `WHERE a=v1 and b=v2`) are one of the first places to look for inefficient index usage. In these cases, you should know that the database can only use a composite index (one index across multiple columns) efficiently if the query conditions match the index's columns from left to right, without skipping any columns. This means that an index on `(a, b, c)` can be effectively used for queries that filter on `(a)`, `(a, b)`, or `(a, b, c)`, but not for queries that filter only on `(b)` or `(b,c)` or `(c)` because that would require skipping the first column `(a)`. So, instead of using an index, the database performs a full table scan, reading the entire table and evaluating every row against the `WHERE` clause.
@@ -881,9 +878,8 @@ Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X r
 
 A more efficient alternative is to use a top-N hint (recognized by most databases) for the initial set of results and then use `WHERE` based on specific key ranges for subsequent queries. This method, known as **keyset pagination**, allows the database to jump directly to the next page using indexed lookups.
 
-# <a id="conclusion" href="#table-of-contents">Conclusion</a>
-
 # <a id="references" href="#table-of-contents">References</a>
-[^1]: FROM → WHERE → SELECT
-[^2]: FROM → WHERE → GROUP BY → SELECT → ORDER BY → LIMIT/OFFSET
-[^3]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". Communications of the ACM. Classics. 13 (6): 377–87. doi:10.1145/362384.362685. S2CID 207549016.
+[^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". 
+[^2]: Chamberlin, Donald D; Boyce, Raymond F (1974). "SEQUEL: A Structured English Query Language".
+[^3]: FROM → WHERE → SELECT
+[^4]: FROM → WHERE → GROUP BY → SELECT → ORDER BY → LIMIT/OFFSET
