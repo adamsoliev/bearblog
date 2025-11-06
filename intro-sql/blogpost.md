@@ -850,17 +850,25 @@ In short, each query using an index typically performs:
 2. A leaf-node chain scan (especially for range queries), and
 3. A table lookup to fetch the full row data.
 
-Effective optimization means designing indexes that minimize unnecessary work in steps (2) and (3).
+Effective optimization then means designing indexes that get utilized as much as possible and minimize unnecessary work in steps (2) and (3).
 
 #### WHERE
 
-The `WHERE` clause defines an SQL query's search condition and is therefore where an index is most often useful.  
+The `WHERE` clause defines an SQL query's search condition and is therefore where an index is most often useful. Below is a list of practices that reduce an index's usefulness.    
 
 Combined conditions (eg `WHERE a=v1 and b=v2`) are one of the first places to look for inefficient index usage. In these cases, you should know that the database can only use a composite index (one index across multiple columns) efficiently if the query conditions match the index's columns from left to right, without skipping any columns. This means that an index on `(a, b, c)` can be effectively used for queries that filter on `(a)`, `(a, b)`, or `(a, b, c)`, but not for queries that filter only on `(b)` or `(b,c)` or `(c)` because that would require skipping the first column `(a)`. So, instead of using an index, the database performs a full table scan, reading the entire table and evaluating every row against the `WHERE` clause.
 
-> When defining a concatenated index, choose the column order carefully.
+---
 
 Most databases today have cost-based optimizers, which generate different execution plans, calculate a cost for each and pick one with the least cost. This cost calculation is based on operations involved and internal statictics on tables, columns and indexes. Whenever you modify an existing index, you run the risk of aging the collected statictics, which can lead to wrong cost estimates. This in turn leads to potentially running a suboptimal execution plan. 
+
+---
+
+When an explicit (eg `UPPER`) or implicit (eg a type cast) function is applied to a column (eg `a`) in the left-hand side of an expression (e.g., `WHERE UPPER(a) = 'TEXT'`), an index on the column `a` cannot be used. The database doesn't know the result of `UPPER(a)` for every row of the table and is therefore forced to do a full table scan.
+
+Note the optimizer can evaluate the right-hand side of the expression before the execution because it has all the information.
+
+---
 
 #### LIMIT AND OFFSET
 Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
