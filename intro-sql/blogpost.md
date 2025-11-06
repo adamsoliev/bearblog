@@ -487,7 +487,7 @@ FUNCTION_NAME(arguments) OVER ( [PARTITION BY ...] [ORDER BY ...] [ROWS/RANGE/GR
 ```
 
 At a high level:
-* `FUNCTION_NAME` is the operation you're performing - e.g., `SUM(column)`, `RANK()`, etc. 
+* `FUNCTION_NAME` is the operation you're performing - eg `SUM(column)`, `RANK()`, etc. 
 * `OVER` defines *which rows* are considered part of the calculation ("window").
 ```sql
 SELECT 
@@ -710,10 +710,10 @@ Here’s what’s actually happening under the hood:
 * Gathers and sorts — finally, all worker threads send their results to the `Gather` node, which merges them and sorts the artist names alphabetically
 
 A couple of things to note in the full query plan. First, the `Filter` node is the least efficient way to filter data. It means Postgres is reading every single row from the table and only then checking if the row matches the `WHERE` clause conditions, discarding most of them after doing all the work to read them. A much better alternative, which a proper index would enable, is for the database to apply those conditions at the index level either as access predicate or filter predicate:   
-* Access Predicates: If your `WHERE` clause uses the leading column(s) of an index (e.g., `WHERE A = value1` on an `(A, B, C)` index), the database uses `A = value1` as an access predicate. It can instantly seek within the B-tree to the exact start and end of the relevant data. This is the most efficient way to limit the search space.
-* Filter Predicates: This is what happens when your `WHERE` clause uses a non-leading column without constraining all the columns before it (e.g., `WHERE A = value1 AND C = value2` on an `(A, B, C)` index). The database uses `A = value1` as an access predicate to find the range of index entries to scan. Then, as it scans through that range, it applies `C = value2` as a filter predicate. It checks the value of `C` within each index entry and discards those that don't match before it ever fetches the corresponding row from the main table.
+* Access Predicates: If your `WHERE` clause uses the leading column(s) of an index (eg `WHERE A = value1` on an `(A, B, C)` index), the database uses `A = value1` as an access predicate. It can instantly seek within the B-tree to the exact start and end of the relevant data. This is the most efficient way to limit the search space.
+* Filter Predicates: This is what happens when your `WHERE` clause uses a non-leading column without constraining all the columns before it (eg `WHERE A = value1 AND C = value2` on an `(A, B, C)` index). The database uses `A = value1` as an access predicate to find the range of index entries to scan. Then, as it scans through that range, it applies `C = value2` as a filter predicate. It checks the value of `C` within each index entry and discards those that don't match before it ever fetches the corresponding row from the main table.
 
-Second, this plan illustrates the three fundamental decisions the query planner makes when building an execution plan. The first is the scan method, where you can see it chose `Sequential Scans` for all tables, meaning it's reading the table from top to bottom. The second key decision is the join method; it exclusively selected `Hash Joins` over other options like `Nested Loop` or `Merge Joins`. Finally, and most importantly, is the join order, where the database opted to join `release` and `artist_credit_name` first, before joining that combined result with the `artist` table.
+Second, this plan illustrates the three fundamental decisions the query planner makes when building an execution plan. The first is the scan method, where you can see it chose `Sequential Scans` for all tables, meaning it's reading the table from top to bottom. The second key decision is the join method; it exclusively selected `Hash Join`s over other options like `Nested Loop` or `Merge Join`s. Finally, and most importantly, is the join order, where the database opted to join `release` and `artist_credit_name` first, before joining that combined result with the `artist` table.
 
 #### Q4
 List the releases with the longest names in each CD-based medium format. Sort the result alphabetically by medium format name, and then release name. If there is a tie, include them all in the result.\
@@ -751,7 +751,7 @@ Logically,
 * In the `RankedReleases` CTE, calculates a window function that:
   * Partitions the filtered data by `mf.name` (grouping by format)
   * Within each partition, assigns ranks using `RANK()` based on `LENGTH(r.name) DESC` (longest names first)
-  * Note: `RANK()` assigns the same rank to releases with identical name lengths and creates gaps in the sequence (e.g., if two releases tie at rank 1, the next rank is 3)
+  * Note: `RANK()` assigns the same rank to releases with identical name lengths and creates gaps in the sequence (eg if two releases tie at rank 1, the next rank is 3)
 * The outer query filters to `rnk = 1`, selecting all releases that have the longest name(s) within each CD format partition
 * Orders the final result set by `format_name ASC, release_name ASC`
 
@@ -825,7 +825,7 @@ Execution Time: 952.429 ms
 
 # <a id="optimizations" href="#table-of-contents">Optimizations</a>
 
-This section covers optimizing data retrieval operations like `SELECT` queries. Performance for these operations is solely reliant on proper indexing. An index here is a separate data structure that speeds up lookups, much like the index at the end of a book. It consumes disk space, storing a copy of the indexed column(s) and a pointer to the full row.
+This section focuses on optimizing data retrieval queries; their performance is heavily dependent on proper indexing. An index here is a separate data structure that speeds up lookups, much like the index at the end of a book. It consumes disk space, storing a copy of the indexed column(s) and a pointer to the full row.
 
 The most common and important index is the B-Tree. The figure below shows a simplified example.
 
@@ -853,7 +853,7 @@ Effective optimization then means designing indexes that get utilized as much as
 #### WHERE
 The `WHERE` clause defines an SQL query's search condition and is therefore where an index is most often useful. Below is a list of practices that reduce an index's usefulness.    
 
-Combined conditions (eg `WHERE a=v1 and b=v2`) are one of the first places to look for inefficient index usage. In these cases, you should know that the database can only use a composite index (one index across multiple columns) efficiently if the query conditions match the index's columns from left to right, without skipping any columns. This means that an index on `(a, b, c)` can be effectively used for queries that filter on `(a)`, `(a, b)`, or `(a, b, c)`, but not for queries that filter only on `(b)` or `(b,c)` or `(c)` because that would require skipping the first column `(a)`. So, instead of using an index, the database performs a full table scan, reading the entire table and evaluating every row against the `WHERE` clause.
+Combined conditions (eg `WHERE a=v1 and b=v2`) are one of the first places to look for inefficient index usage. In these cases, you should know that the database can only use a composite index (one index across multiple columns) efficiently if the query conditions match the index's columns from left to right, without skipping any columns. This means that an index on `(a, b, c)` can be effectively used for queries that filter on `(a)`, `(a, b)`, or `(a, b, c)`, but not for queries that filter on `(b)` or `(b,c)` or `(c)` because that would mean skipping `(a)` or `(a,b)`. So, instead of using an index, the database performs a full table scan, reading the entire table and evaluating every row against the `WHERE` clause.
 
 ---
 
@@ -861,7 +861,7 @@ Most databases today have cost-based optimizers, which generate different execut
 
 ---
 
-When an explicit (eg `UPPER`) or implicit (eg a type cast) function is applied to a column (eg `a`) in the left-hand side of an expression (e.g., `WHERE UPPER(a) = 'TEXT'`), an index on the column `a` cannot be used. The database doesn't know the result of `UPPER(a)` for every row of the table and is therefore forced to do a full table scan.
+When an explicit (eg `UPPER`) or implicit (eg a type cast) function is applied to a column (eg `a`) in the left-hand side of an expression (eg `WHERE UPPER(a) = 'TEXT'`), an index on the column `a` cannot be used. The database doesn't know the result of `UPPER(a)` for the column `a` of every row of the table and is therefore forced to do a full table scan.
 
 Note the optimizer can evaluate the right-hand side of the expression before the execution because it has all the information.
 
@@ -871,7 +871,7 @@ Using bind parameters (`SELECT * FROM users WHERE age_cohort = ?`) forces the op
 
 Using literal values allows the optimizer to use its detailed statistics (like histograms) to estimate the specific data volume that this exact value will select.
 
-A value that selects a small volume (e.g., 10 rows) will get a different, more appropriate cost and plan (like an Index Scan) than a value that selects a huge volume (e.g., 1,000,000 rows), which will get a plan suited for high volume (like a Table Scan). Therefore, you should always use bind parameters except for cases when the "equally distributed" assumption doesn't hold.
+A value that selects a small volume (eg 10 rows) will get a different, more appropriate cost and plan (like an Index Scan) than a value that selects a huge volume (eg 1,000,000 rows), which will get a plan suited for high volume (like a Table Scan). Therefore, you should always use bind parameters except for cases when the "equally distributed" assumption doesn't hold.
 
 #### LIMIT AND OFFSET
 Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
