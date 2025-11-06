@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <!-- 16×16 tile, half blue / half white, rotated 45° -->
+    <pattern id="diag‑stripes" patternUnits="userSpaceOnUse" width="16" height="16" patternTransform="rotate(45)">
+      <rect width="16" height="8" fill="#007BFF"></rect>   <!-- blue -->
+      <rect y="8" width="16" height="8" fill="#FFFFFF"></rect> <!-- white -->
+    </pattern>
+  </defs>
+
+  <!-- Icon background filled with the diagonal‑stripe pattern -->
+  <rect width="128" height="128" fill="url(#diag‑stripes)"></rect>
+</svg>
