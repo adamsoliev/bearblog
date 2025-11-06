@@ -860,7 +860,7 @@ Combined conditions (eg `WHERE a=v1 and b=v2`) are one of the first places to lo
 
 ---
 
-Most databases today have cost-based optimizers, which generate different execution plans, calculate a cost for each and pick one with the least cost. This cost calculation is based on operations involved and internal statictics on tables, columns and indexes. Whenever you modify an existing index, you run the risk of aging the collected statictics, which can lead to wrong cost estimates. This in turn leads to potentially running a suboptimal execution plan. 
+Most databases today have cost-based optimizers, which generate different execution plans, calculate a cost for each and pick one with the least cost. This cost calculation is based on operations involved and internal statictics on tables, columns and indexes. Whenever you modify an existing index, you run the risk of aging the statictics, which can lead to wrong cost estimates. This in turn leads to potentially running a suboptimal execution plan. 
 
 ---
 
@@ -869,6 +869,12 @@ When an explicit (eg `UPPER`) or implicit (eg a type cast) function is applied t
 Note the optimizer can evaluate the right-hand side of the expression before the execution because it has all the information.
 
 ---
+
+Using bind parameters (`SELECT * FROM users WHERE age_cohort = ?`) forces the optimizer to create a generic plan. Since it doesn't know the specific value, it often assumes equal distribution to estimate number of rows it has to fetch. This fixed estimate leads to the same cost calculation and, therefore, the same reused execution plan every time.
+
+Using literal values allows the optimizer to use its detailed statistics (like histograms) to estimate the specific data volume that this exact value will select.
+
+A value that selects a small volume (e.g., 10 rows) will get a different, more appropriate cost and plan (like an Index Scan) than a value that selects a huge volume (e.g., 1,000,000 rows), which will get a plan suited for high volume (like a Table Scan). Therefore, you should always use bind parameters except for cases when the "equally distributed" assumption doesn't hold.
 
 #### LIMIT AND OFFSET
 Pagination is a common use case for `LIMIT` and `OFFSET`: fetching the first X rows with `LIMIT`, then skipping over previously retrieved ones in subsequent queries with `OFFSET`. This implementation is a subpar alternative when indexes exist on the ordering columns – the database must still process all preceding rows before skipping them.
