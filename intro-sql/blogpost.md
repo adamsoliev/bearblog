@@ -50,9 +50,9 @@ Formally, the relational model is much more involved but its practical applicati
 * the order of columns is fixed
 * tables reference each other using foreign keys
 
-This turned out to be the right abstaction for databases, providing a maximum degree of data independence (separating the logical view of data from its physical storage) and effectively solves issues of data inconsistency.
+This turned out to be the right abstaction for databases, providing a maximum degree of data independence (separating the logical view of data from its physical storage) and effectively solving issues of data inconsistency.
 
-This data independence then provided a basis for high-level query languages. This evolution started with languages like COLARD and RIL, which were based on predicate calculus. These later inspired SQUARE, which still relied on the terse mathematical notation, and eventually led to SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today [^2].
+This data independence then provided a basis for high-level query languages. Early attempts such as COLARD and RIL were based on predicate calculus, limiting their reach to a small group of specialists. This general inaccessiblity inspired SQUARE, which simplified database interaction quite a bit but still relied on the terse mathematical notation. This was solved by SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today [^2].
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
@@ -148,15 +148,15 @@ T1 NATURAL { [INNER] | { LEFT | RIGHT | FULL } [OUTER] } JOIN T2
 `INNER` and `OUTER` are optional; `INNER` is the default. `LEFT`, `RIGHT`, and `FULL` all imply outer joins.
 
 Join types
-* `INNER JOIN` keeps only rows that match on both sides.
-* `LEFT JOIN` keeps all rows from the left table and fills in columns from the right table only when you have a match, otherwise using NULL as the column values.
-* `RIGHT JOIN` does the opposite: it keeps all rows from the right table.
-* `FULL JOIN` keeps all rows from both sides, padding missing values with NULL.
-* `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts.
-* `LATERAL JOIN` allows a subquery that runs once per row of the outer table — like a loop over the left input.
+* `INNER JOIN` keeps only rows that match on both sides
+* `LEFT JOIN` keeps all rows from the left table and fills in columns from the right table only when you have a match, otherwise using `NULL` as the column values
+* `RIGHT JOIN` does the opposite: it keeps all rows from the right table
+* `FULL JOIN` keeps all rows from both sides, padding missing values with `NULL`
+* `CROSS JOIN` returns every possible combination of rows from both tables, so the result size is the product of their row counts
+* `LATERAL JOIN` executes a subquery for each row of the outer (left) table, much like a loop
 
 Join conditions
-* `ON` defines how rows from the two tables are matched and filtered. In contrast, `WHERE` (covered next) is also a filter, but it applies after the join output is produced. Here’s a basic `ON` example that pairs each checked-out book with its holder and displays those in the literature genre.
+* `ON` defines how rows from the two tables are matched and filtered. In contrast, `WHERE` (covered next) is also a filter, but it applies after the join output is produced. Here’s a basic `ON` example that pairs each checked-out book with its holder and filters out books that aren't in the literature genre.
   ```sql
   SELECT *
   FROM books AS b
@@ -326,7 +326,7 @@ FROM books
 GROUP BY author;
 ```
 
-`HAVING` checks the summary row of every group against the condition: if it evaluates to true, the summary row is kept; if false or null, it's discarded. In other words, `HAVING` is a group-level filter (recall that `WHERE` is a row-level one).
+`HAVING` checks the summary row of every group against the condition: if it evaluates to true, the summary row is kept; if false or `NULL`, it's discarded. In other words, `HAVING` is a group-level filter (recall that `WHERE` is a row-level one).
 ```sql
 SELECT genre, COUNT(*) 
 FROM books
@@ -334,7 +334,7 @@ GROUP BY genre
 HAVING COUNT(*) > 2;
 ```
 
-`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. By using `GROUPING SETS`, you can combine various aggregations into a single query. The main advantage here is that you read data only once while producing many different aggregation sets at the same time.
+`GROUPING SETS` is syntactic sugar for running multiple `GROUP BY`s in parallel. By using `GROUPING SETS`, you can combine various aggregations into a single query. The main advantage here is that you read data only once while producing multiple aggregation sets at the same time.
 
 For example, to count the number of books per genre and author simultaneously, you could use:
 ```sql
@@ -416,7 +416,7 @@ GROUP BY CUBE (l.branch_name, b.genre);
 <!-- /////////////////// -->
 ### <a id="common-table-expressions" href="#table-of-contents">COMMON TABLE EXPRESSIONS</a>
 
-`Common table expressions` (CTEs) let you define a named subquery, run it as a prologue, and then refer to its result set like any other relation in the main query’s `FROM`. CTEs' value comes from breaking down complicated queries into simpler, and easier to follow, parts.
+`Common table expressions` (CTEs) let you define a named subquery, run it in advance, and then refer to its result set like any other relation in the main query’s `FROM`. CTEs' value comes from breaking down complicated queries into simpler, and easier to follow, parts.
 
 ```sql
 WITH hold_premium as (
@@ -437,7 +437,7 @@ UNION or UNION ALL
 recursive term
 ```
 
-The first term acts as the base case and each subsequent iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. 
+The first term acts as the base case and each iteration of the recursive term builds on the prior results until no new rows are produced or the condition is met. Only the recursive term may reference the CTE itself. 
 
 `UNION` or `UNION ALL` operators can be thought of as combining the base query results and the iterative results vertically. Note that `UNION ALL` is faster because it simply concatenates all rows, while `UNION` performs an additional, costly step to remove duplicates.
 
@@ -506,7 +506,7 @@ SELECT
 FROM users;
 ```
 
-`ORDER BY` defines the logical ordering of rows *within* each partition. This ordering matters for ranking functions  and for window frames that depend on order (like a running total).
+`ORDER BY` defines the logical ordering of rows *within* each partition. This ordering matters for ranking functions and for cumulative or moving calculations that depend on a specific row sequence.
 ```sql
 SELECT 
     full_name,
@@ -588,7 +588,7 @@ A few important takeaways:
 * An expression can be `NULL`, but it can never equal `NULL`.
 * Two `NULL`s are not equal in normal comparisons, but are equal under `IS [NOT] DISTINCT FROM`.
 * When testing numeric ranges, you must handle `NULL`s explicitly.
-* Aggregate functions ignore `NULL`s except `COUNT(*)`, which counts every row regardless of column nulls.
+* Aggregate functions ignore `NULL`s except `COUNT(*)`, which counts every row regardless of column `NULL`s.
 
 To prevent `NULL` values in the first place, declare columns as `NOT NULL` in `CREATE TABLE`, even if you provide a default value. This constraint enforces that the column can never store unknown data.
 
@@ -634,8 +634,8 @@ Logically, here's what the database is doing:
 * For each row that passes the above filters, evaluates a correlated EXISTS subquery that:
   * Joins `artist_credit_name` → `release`
   * Filters to releases credited to the current artist (`ACN.artist = A.id`)
-  * Checks if `R.language IS DISTINCT FROM C.english_id` (returns TRUE if the language is not English OR if language is NULL, treating NULL as non-English)
-  * Returns TRUE if at least one such non-English (or NULL language) release exists for this artist
+  * Checks if `R.language IS DISTINCT FROM C.english_id` (returns TRUE if the language is not English OR if language is `NULL`, treating `NULL` as non-English)
+  * Returns TRUE if at least one such non-English (or `NULL` language) release exists for this artist
 * Keeps only artists where the EXISTS subquery returns TRUE
 * Orders the final result set by `A.name ASC`
 
@@ -707,9 +707,9 @@ Here’s what’s actually happening under the hood:
 * Builds two hash tables — one from `artist_credit_name`, and another from `artist`
 * Scans and probes in parallel — While scanning the `release` table, the database probes the `artist_credit_name` hash table to find which releases belong to which artists
 * Joins results — the combined `release × artist_credit_name` output is then used to probe the second hash table built from `artist`, returning only those artists that have at least one release in a non-English language
-* Gathers and sorts — finally, all worker threads send their results to the `Gather` process, which merges them and sorts the artist names alphabetically
+* Gathers and sorts — finally, all worker threads send their results to the `Gather` node, which merges them and sorts the artist names alphabetically
 
-A couple of things to note in the full query plan. First, the `Filter` node is the least efficient way to filter data. It means PostgreSQL is reading every single row from the table and only then checking if the row matches the `WHERE` clause conditions, discarding most of them after doing all the work to read them. A much better alternative, which a proper index would enable, is for the database to apply those conditions at the index level either as access predicate or filter predicate:   
+A couple of things to note in the full query plan. First, the `Filter` node is the least efficient way to filter data. It means Postgres is reading every single row from the table and only then checking if the row matches the `WHERE` clause conditions, discarding most of them after doing all the work to read them. A much better alternative, which a proper index would enable, is for the database to apply those conditions at the index level either as access predicate or filter predicate:   
 * Access Predicates: If your `WHERE` clause uses the leading column(s) of an index (e.g., `WHERE A = value1` on an `(A, B, C)` index), the database uses `A = value1` as an access predicate. It can instantly seek within the B-tree to the exact start and end of the relevant data. This is the most efficient way to limit the search space.
 * Filter Predicates: This is what happens when your `WHERE` clause uses a non-leading column without constraining all the columns before it (e.g., `WHERE A = value1 AND C = value2` on an `(A, B, C)` index). The database uses `A = value1` as an access predicate to find the range of index entries to scan. Then, as it scans through that range, it applies `C = value2` as a filter predicate. It checks the value of `C` within each index entry and discards those that don't match before it ever fetches the corresponding row from the main table.
 
