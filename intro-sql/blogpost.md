@@ -52,7 +52,7 @@ Formally, the relational model is much more involved but its practical applicati
 
 This turned out to be the right abstaction for databases, providing a maximum degree of data independence (separating the logical view of data from its physical storage) and effectively solving issues of data inconsistency.
 
-This data independence then provided a basis for high-level query languages. Early attempts such as COLARD and RIL were based on predicate calculus, limiting their reach to a small group of specialists. This general inaccessiblity inspired SQUARE, which simplified database interaction quite a bit but still relied on the terse mathematical notation. This was solved by SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today [^2].
+This data independence then provided a basis for high-level query languages. Early attempts such as COLARD and RIL were based on predicate calculus, limiting their reach to a small group of specialists. This general inaccessibility inspired SQUARE, which simplified database interaction quite a bit but still relied on the terse mathematical notation. This was solved by SEQUEL (now SQL), which introduced the accessible, English-keyword template form used today [^2].
 
 # <a id="basic-sql" href="#table-of-contents">Basic SQL</a>
 
@@ -474,7 +474,11 @@ FROM branch_openings
 ORDER BY open_order;
 ```
 
-Recursive CTEs are most often used to work with hierarchical or graph-like data.
+---
+As you might have guessed by now, one of the quirks of SQL is its "inside-out" data flow [^5]:
+> data flow [...] starts in the middle with the most deeply nested table reference. Then logic builds outwards, applying operations both above and below the starting point, while traversing outwards through layers of nested subqueries.
+
+CTEs partially address this challenge.
 
 <!-- /////////////////// -->
 <!-- Window functions -->
@@ -882,4 +886,5 @@ A more efficient alternative is to use a top-N hint (recognized by most database
 [^1]: Codd, E.F (1970). "A Relational Model of Data for Large Shared Data Banks". 
 [^2]: Chamberlin, Donald D; Boyce, Raymond F (1974). "SEQUEL: A Structured English Query Language".
 [^3]: FROM → WHERE → SELECT
-[^4]: FROM → WHERE → GROUP BY → SELECT → ORDER BY → LIMIT/OFFSET
+[^4]: FROM → WHERE → GROUP BY → ORDER BY → SELECT → LIMIT/OFFSET
+[^5]: Shute, Jeff, et al. "SQL has problems. We can fix them: Pipe syntax in SQL."
