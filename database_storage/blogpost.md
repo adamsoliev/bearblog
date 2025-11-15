@@ -28,9 +28,9 @@ Looking at Postgres [^2],
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
-Looking at MySQL [^3], 
+Looking at MySQL's InnoDB [^3], 
 <div style="text-align: left;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
 LSM (Log-Structured Merge) tree-based storage engines — introduced in academic literature in 1996. These engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global tree maintenance, thereby optimizing for high ingestion/write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^1]
@@ -46,4 +46,4 @@ storage engines that are optimized for more advanced queries, such as text retri
 # <a id="references" href="#table-of-contents">References</a>
 [^1]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
 [^2]: Freund, A. (2019, June 25). Pluggable table storage in PostgreSQL [Presentation slides]. https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf
-[^3]: Oracle. (2025). 18.1 Pluggable Storage Engines Overview. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/pluggable-storage-overview.html
+[^3]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
