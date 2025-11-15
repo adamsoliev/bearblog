@@ -11,6 +11,9 @@
 ---
 
 # <a id="db-storage" href="#table-of-contents">Database storage</a>
+Database storage means different things to different people. In this blogpost, when I say database storage, I mean its API to higher level components, in-memory and in-disk structures and how it talks to the lower level system (either OS's file system abstraction or to disk directly).   
+
+Another way to think about this is the following diagram
 you input data certain way (data model) -> database stores it certain way (storage - write part)
 
 you query data certain way (query language) -> database fetches it certain way (storage - read part)
