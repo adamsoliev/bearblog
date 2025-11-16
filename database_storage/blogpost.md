@@ -6,26 +6,32 @@
   - [LSM tree storage engines](#lsm-tree-se)
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
-- [Other](#other)
+- [Design knobs](#design-knobs)
 - [References](#references)
 
 ---
 
 # <a id="db-storage" href="#table-of-contents">Database storage</a>
 
-There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)). My goal here is to update and expand on those pieces. Their tl;dr:
+There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)).
 
-A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It is agnostic to the data model (relational vs. non-relational) and usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees). The former provides balanced read and write performance, while the latter is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
+tl;dr:
+
+A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees). The former provides balanced read and write performance, while the latter is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
+
+My goal here is to build on that summary and shallowly sketch the current storage-engine landscape. In this regard, two broad workload types dominate: OLTP and OLAP (bear with me for a second for the terminology). OLTP workloads issue many short reads and/or writes that touch only a few records at a time. OLAP workloads run long, complex analytical queries that scan large segments of a dataset. Given this contrast between workloads, storage-engine designs follow suit.
 
 # <a id="oltp" href="#table-of-contents">OLTP</a>
 
-Storage engines optimized for transactional (OLTP) workloads can be broadly classified into:
+Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
 
-- B+ tree-based
-- LSM (Log-Structured Merge) tree-based
-- LSH (Log-Structured Hash) table-based
+While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engines. Based on these needs, one way to classify OLTP storage engines is:
 
-B+ tree-based storage engines — these maintain a global sorted order (tree) and typically update data in place. The B‐tree data structure was invented in 1970. Many classic relational engines use this design.
+- **B+ tree-based**: ideal for balanced read-write workloads.
+- **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
+- **LSH (Log-Structured Hash) table-based**: designed for extremely high-ingest workloads.
+
+B+ tree-based storage engines maintain a global sorted order (tree) and typically update data in place. The B‐tree data structure was invented in 1970. Many classic relational engines use this design.
 
 Looking at Postgres [^2],
 
@@ -39,15 +45,36 @@ Looking at MySQL's InnoDB [^3],
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
-LSM (Log-Structured Merge) tree-based storage engines — introduced in academic literature in 1996. These engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global tree maintenance, thereby optimizing for high ingestion/write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^1]
+LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^1]
 
-LSH (Log-Structured Hash) table-based storage engines — forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^1]
+LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^1]
 
 # <a id="olap" href="#table-of-contents">OLAP</a>
 
-Storage engines that are optimized for for analytics (OLAP)
+Storage engines that are optimized for analytics use a column-oriented storage layout with compression that minimizes the amount of data that such a query needs to read off disk.
 
-# <a id="other" href="#table-of-contents">Other</a>
+# <a id="design-knobs" href="#table-of-contents">Design knobs</a>
+
+### In-memory data structures
+
+### In-disk data structures
+
+### Modern Storage Hardware
+
+- disk
+- SSD
+- persistent memory
+
+### Modern Storage APIs
+
+- io_uring
+
+### Design knobs around working with the underlying memory/storage
+
+- work with OS's file system
+- work with mmap
+- work directly with storage hardware
+- work with remote storage
 
 storage engines that are optimized for more advanced queries, such as text retrieval
 
