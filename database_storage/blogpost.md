@@ -49,9 +49,13 @@ Looking at MySQL's InnoDB [^4],
 
 LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^5]
 
+[RocksDB storage engine](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview)
+
 #### LSH-table-based
 
 LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^5]
+
+[F2 at Microsoft](https://arxiv.org/abs/2305.01516)
 
 # <a id="olap" href="#table-of-contents">OLAP</a>
 
