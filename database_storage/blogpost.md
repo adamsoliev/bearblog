@@ -33,41 +33,47 @@ While all of these are OLTP use cases, their vastly different write requirements
 
 #### B+tree-based
 
-B+tree-based storage engines maintain a global sorted order (via self-balancing tree) and typically update data in place. Given B‐tree data structure [^1] [^2] was invented in 1970, many relational databases use this design, including Postgres. Its architecture[^3] is shown below and the dashed red box roughly corresponds to its "storage engine".
+B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for their primary and secondary indexes.
+
+MySQL's InnoDB is a good example of such a storage engine. Its architecture[^5] is shown below. An interesting piece there is `File-Per-Table Tablespaces`, which encapsulate table data files.
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 1px solid black; width: 80%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 70%; height: auto;">
 </div>
 
-In it, each table or an index is one file accompanied by two other related files for tracking free space and visibility map. Relations larger than 1GB are split into 1GB segments to support file systems with size limits. Segment files are named with sequential suffixes (.1, .2, etc.). The main file is divided into 8KB pages; in table's case, all of which are equivalent, so an item (row in a table or key-value pair in index) can be stored in any of them. In the index's case, the first block contains metadata and there can be different types of pages within the index, depending on the index access method. Page's layout is as follows:
+Each file stores table data and indexes. Primary key is used as a clustered key, where leaf nodes of B+tree has the actual rows of the table., so rows stay physically ordered by the primary key and secondary indexes point back to that ordering. The figure below shows a simplified example of how those indexes organize tuples.
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 1px solid black; width: 60%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-Postgres is said to have B+tree based storage engine because by default it creates a B+tree index for the primary key of the table. The figure below shows a simplified example.
+PostgreSQL, for example, stores table data in heap files but uses B-tree indexes by default for primary keys and many secondary indexes. Its architecture[^4] is shown below and the dashed red box roughly corresponds to its "storage engine".
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 1px solid black; width: 90%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
 </div>
 
-To recap, you have two files – one for the table (eg 16722) and one for the index (eg 16729).
-
-Looking at MySQL's InnoDB [^4],
+In PostgreSQL, each table or index lives in its own file, accompanied by two auxiliary forks for the free space map (FSM) and visibility map (VM). Relations larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables the pages are all interchangeable so a row can be stored anywhere, whereas indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 1px solid black; width: 90%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+While PostgreSQL itself is a heap-storage engine, every PRIMARY KEY (and most unique constraints) automatically creates a B+tree index, so you typically end up with one file per table plus at least one more for its B-tree index. The figure below shows a simplified example of how those indexes organize tuples.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
 #### LSM-tree-based
 
-LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^5]
+LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^6]
 
 [RocksDB storage engine](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview)
 
 #### LSH-table-based
 
-LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^5]
+LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^6]
 
 [F2 at Microsoft](https://arxiv.org/abs/2305.01516)
 [Garnet at Microsoft](https://microsoft.github.io/garnet/docs/research/papers)
@@ -107,8 +113,10 @@ storage engines that are optimized for more advanced queries, such as text retri
 
 [^2]: Dicken, Ben. "B-trees and database indexes." PlanetScale, 9 Sept. 2024, https://planetscale.com/blog/btrees-and-database-indexes.
 
-[^3]: Freund, Andres. "Pluggable table storage in PostgreSQL.", June 25. 2019, https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf.
+[^3]: Congdon, Ben. "B-Trees: More Than I Thought I'd Want to Know." 17 August. 2021, https://benjamincongdon.me/blog/2021/08/17/B-Trees-More-Than-I-Thought-Id-Want-to-Know.
 
-[^4]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
+[^4]: Freund, Andres. "Pluggable table storage in PostgreSQL.", June 25. 2019, https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf.
 
-[^5]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
+[^5]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
+
+[^6]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
