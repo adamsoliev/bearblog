@@ -36,7 +36,13 @@ While all of these are OLTP use cases, their vastly different write requirements
 B+tree-based storage engines maintain a global sorted order (via self-balancing tree) and typically update data in place. Given B‐tree data structure [^1] [^2] was invented in 1970, many relational databases use this design, including Postgres. Its architecture[^3] is shown below and the dashed red box roughly corresponds to its "storage engine".
 
 <div style="text-align: left;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 1px solid black;">
+</div>
+
+In it, each sub-1GB table is one file accompanied by two other related files for tracking free space and visibility. The main file is divided in to 8KB blocks, all of which are equivalent, so a row can be stored in any of them.
+
+<div style="text-align: left;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 1px solid black;">
 </div>
 
 Looking at MySQL's InnoDB [^4],
@@ -56,6 +62,7 @@ LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. L
 LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^5]
 
 [F2 at Microsoft](https://arxiv.org/abs/2305.01516)
+[Garnet at Microsoft](https://microsoft.github.io/garnet/docs/research/papers)
 
 # <a id="olap" href="#table-of-contents">OLAP</a>
 
