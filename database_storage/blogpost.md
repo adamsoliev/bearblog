@@ -33,33 +33,33 @@ While all of these are OLTP use cases, their vastly different write requirements
 
 #### B+tree-based
 
-B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for their primary and secondary indexes.
+B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for primary and secondary indexes.
 
-MySQL's InnoDB is a good example of such a storage engine. Its architecture[^5] is shown below. An interesting piece there is `File-Per-Table Tablespaces`, which encapsulate table data files.
+MySQL's InnoDB is a good example of such a storage engine. Its architecture [^4] is shown below. `File-Per-Table Tablespaces` is where table data and indexes are stored.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 70%; height: auto;">
 </div>
 
-Each file stores table data and indexes. Primary key is used as a clustered key, where leaf nodes of B+tree has the actual rows of the table., so rows stay physically ordered by the primary key and secondary indexes point back to that ordering. The figure below shows a simplified example of how those indexes organize tuples.
+With file-per-table enabled, each `.ibd` file stores the table’s clustered index and all its secondary indexes [^5]. InnoDB clusters the table on the primary key: the leaf pages of the primary B+tree contain entire rows, ordered by that key. Secondary indexes store key values plus the primary-key columns as the logical row locator. The figure below shows a simplified primary index layout.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-PostgreSQL, for example, stores table data in heap files but uses B-tree indexes by default for primary keys and many secondary indexes. Its architecture[^4] is shown below and the dashed red box roughly corresponds to its "storage engine".
+PostgreSQL takes a different approach. It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^4] is shown below; the dashed red box roughly corresponds to its "storage engine".
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
 </div>
 
-In PostgreSQL, each table or index lives in its own file, accompanied by two auxiliary forks for the free space map (FSM) and visibility map (VM). Relations larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables the pages are all interchangeable so a row can be stored anywhere, whereas indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
+Each Postgres table or index is stored in its own file, accompanied by two auxiliary forks for the free space map (FSM) and visibility map (VM). Tables larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables, all pages are interchangeable, so a row can be stored anywhere. Indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-While PostgreSQL itself is a heap-storage engine, every PRIMARY KEY (and most unique constraints) automatically creates a B+tree index, so you typically end up with one file per table plus at least one more for its B-tree index. The figure below shows a simplified example of how those indexes organize tuples.
+By default, a primary key or unique constraint creates a B+tree index, so you typically end up with at least one file per table plus at least one more for its B+tree index. The figure below shows how the table and its B+tree primary index are related.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
@@ -69,7 +69,7 @@ While PostgreSQL itself is a heap-storage engine, every PRIMARY KEY (and most un
 
 LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^6]
 
-[RocksDB storage engine](https://github.com/facebook/rocksdb/wiki/RocksDB-Overview)
+RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
 
 #### LSH-table-based
 
@@ -113,10 +113,14 @@ storage engines that are optimized for more advanced queries, such as text retri
 
 [^2]: Dicken, Ben. "B-trees and database indexes." PlanetScale, 9 Sept. 2024, https://planetscale.com/blog/btrees-and-database-indexes.
 
-[^3]: Congdon, Ben. "B-Trees: More Than I Thought I'd Want to Know." 17 August. 2021, https://benjamincongdon.me/blog/2021/08/17/B-Trees-More-Than-I-Thought-Id-Want-to-Know.
+[^3]: Congdon, Ben. "B-Trees: More Than I Thought I'd Want to Know." 17 Aug. 2021, https://benjamincongdon.me/blog/2021/08/17/B-Trees-More-Than-I-Thought-Id-Want-to-Know.
 
-[^4]: Freund, Andres. "Pluggable table storage in PostgreSQL.", June 25. 2019, https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf.
+[^4]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
 
-[^5]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
+[^5]: Cole, Jeremy. "The basics of InnoDB space file layout." 3 Jan. 2013, https://blog.jcole.us/2013/01/03/the-basics-of-innodb-space-file-layout.
 
-[^6]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
+[^6]: Freund, Andres. "Pluggable table storage in PostgreSQL." 25 Jun. 2019, https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf.
+
+[^7]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
+
+[^8]: Oracle. File-Per-Table Tablespaces. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-file-per-table-tablespaces.html
