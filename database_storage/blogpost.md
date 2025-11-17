@@ -27,27 +27,31 @@ Shopping on an e-commerce site is a good example of a balanced read-write OLTP w
 
 While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engines. Based on these needs, one way to classify OLTP storage engines is:
 
-- **B+ tree-based**: ideal for balanced read-write workloads.
+- **B+tree-based**: ideal for balanced read-write workloads.
 - **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
 - **LSH (Log-Structured Hash) table-based**: designed for extremely high-ingest workloads.
 
-B+ tree-based storage engines maintain a global sorted order (tree) and typically update data in place. The B‐tree data structure was invented in 1970. Many classic relational engines use this design.
+#### B+tree-based
 
-Looking at Postgres [^2],
+B+tree-based storage engines maintain a global sorted order (via self-balancing tree) and typically update data in place. Given B‐tree data structure [^1] [^2] was invented in 1970, many relational databases use this design, including Postgres. Its architecture[^3] is shown below and the dashed red box roughly corresponds to its "storage engine".
 
 <div style="text-align: left;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
-Looking at MySQL's InnoDB [^3],
+Looking at MySQL's InnoDB [^4],
 
 <div style="text-align: left;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
 </div>
 
-LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^1]
+#### LSM-tree-based
 
-LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^1]
+LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^5]
+
+#### LSH-table-based
+
+LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^5]
 
 # <a id="olap" href="#table-of-contents">OLAP</a>
 
@@ -80,8 +84,12 @@ storage engines that are optimized for more advanced queries, such as text retri
 
 # <a id="references" href="#table-of-contents">References</a>
 
-[^1]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
+[^1]: Bayer, Rudolf, and Edward McCreight. "Organization and maintenance of large ordered indices."
 
-[^2]: Freund, A. (2019, June 25). Pluggable table storage in PostgreSQL [Presentation slides]. https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf
+[^2]: Dicken, Ben. "B-trees and database indexes." PlanetScale, 9 Sept. 2024, https://planetscale.com/blog/btrees-and-database-indexes.
 
-[^3]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
+[^3]: Freund, Andres. "Pluggable table storage in PostgreSQL.", June 25. 2019, https://anarazel.de/talks/2019-06-25-pgvision-pluggable-table-storage/pluggable.pdf.
+
+[^4]: Oracle. (2025). Figure 17.1 InnoDB Architecture. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-architecture.html
+
+[^5]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
