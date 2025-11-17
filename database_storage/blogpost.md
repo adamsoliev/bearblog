@@ -11,7 +11,7 @@
 
 ---
 
-# <a id="db-storage" href="#table-of-contents">Database storage</a>
+## <a id="db-storage" href="#table-of-contents">Database storage</a>
 
 There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)).
 
@@ -21,7 +21,7 @@ A storage engine is the component of a database that handles CRUD operations, in
 
 My goal here is to build on that summary and shallowly sketch the current storage-engine landscape. In this regard, two broad workload types dominate: OLTP and OLAP (bear with me for a second for the terminology). OLTP workloads issue many short reads and/or writes that touch only a few records at a time. OLAP workloads run long, complex analytical queries that scan large segments of a dataset. Given this contrast between workloads, storage-engine designs follow suit.
 
-# <a id="oltp" href="#table-of-contents">OLTP</a>
+## <a id="oltp" href="#table-of-contents">OLTP</a>
 
 Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
 
@@ -35,20 +35,28 @@ While all of these are OLTP use cases, their vastly different write requirements
 
 B+tree-based storage engines maintain a global sorted order (via self-balancing tree) and typically update data in place. Given B‐tree data structure [^1] [^2] was invented in 1970, many relational databases use this design, including Postgres. Its architecture[^3] is shown below and the dashed red box roughly corresponds to its "storage engine".
 
-<div style="text-align: left;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 1px solid black;">
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 1px solid black; width: 80%; height: auto;">
 </div>
 
-In it, each sub-1GB table is one file accompanied by two other related files for tracking free space and visibility. The main file is divided in to 8KB blocks, all of which are equivalent, so a row can be stored in any of them.
+In it, each table or an index is one file accompanied by two other related files for tracking free space and visibility map. Relations larger than 1GB are split into 1GB segments to support file systems with size limits. Segment files are named with sequential suffixes (.1, .2, etc.). The main file is divided into 8KB pages; in table's case, all of which are equivalent, so an item (row in a table or key-value pair in index) can be stored in any of them. In the index's case, the first block contains metadata and there can be different types of pages within the index, depending on the index access method. Page's layout is as follows:
 
-<div style="text-align: left;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 1px solid black;">
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 1px solid black; width: 60%; height: auto;">
 </div>
+
+Postgres is said to have B+tree based storage engine because by default it creates a B+tree index for the primary key of the table. The figure below shows a simplified example.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 1px solid black; width: 90%; height: auto;">
+</div>
+
+To recap, you have two files – one for the table (eg 16722) and one for the index (eg 16729).
 
 Looking at MySQL's InnoDB [^4],
 
-<div style="text-align: left;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 1px solid black; width: 90%; height: auto;">
 </div>
 
 #### LSM-tree-based
@@ -64,11 +72,11 @@ LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely 
 [F2 at Microsoft](https://arxiv.org/abs/2305.01516)
 [Garnet at Microsoft](https://microsoft.github.io/garnet/docs/research/papers)
 
-# <a id="olap" href="#table-of-contents">OLAP</a>
+## <a id="olap" href="#table-of-contents">OLAP</a>
 
 Storage engines that are optimized for analytics use a column-oriented storage layout with compression that minimizes the amount of data that such a query needs to read off disk.
 
-# <a id="design-knobs" href="#table-of-contents">Design knobs</a>
+## <a id="design-knobs" href="#table-of-contents">Design knobs</a>
 
 ### In-memory data structures
 
@@ -93,7 +101,7 @@ Storage engines that are optimized for analytics use a column-oriented storage l
 
 storage engines that are optimized for more advanced queries, such as text retrieval
 
-# <a id="references" href="#table-of-contents">References</a>
+## <a id="references" href="#table-of-contents">References</a>
 
 [^1]: Bayer, Rudolf, and Edward McCreight. "Organization and maintenance of large ordered indices."
 
