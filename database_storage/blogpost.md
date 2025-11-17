@@ -47,7 +47,7 @@ With file-per-table enabled, each `.ibd` file stores the table’s clustered ind
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-PostgreSQL takes a different approach. It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^4] is shown below; the dashed red box roughly corresponds to its "storage engine".
+PostgreSQL takes a different approach. It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box roughly corresponds to its "storage engine".
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
@@ -67,16 +67,17 @@ By default, a primary key or unique constraint creates a B+tree index, so you ty
 
 #### LSM-tree-based
 
-LSM (Log-Structured Merge) tree was introduced in academic literature in 1996. LSM-tree based storage engines buffer updates in memory and flush out sorted runs, relaxing strict in‐place updates and global order maintenance, thereby optimizing for write throughput (common in internet scale, write‐heavy applications). Compared to B+ tree storage engines, LSM ones achieve better writes but give up some read performance (eg for short-range queries) and memory amplification. [^6]
+The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (e.g., short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
 
 RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
 
 #### LSH-table-based
 
-LSH (Log-Structured Hash) table-based storage engines forwent ordering entirely (no global/local sort order) and instead use a hash approach, optimizing for very high ingest throughput. Compared to LSM tree based storage engines, LSH table ones achieve even better writes but give up some more read performance (eg range queries) and memory amplification. [^6]
+The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
 
-[F2 at Microsoft](https://arxiv.org/abs/2305.01516)
-[Garnet at Microsoft](https://microsoft.github.io/garnet/docs/research/papers)
+This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys. [^7]
+
+Faster [^8] and its follow ups are good examples of such a system.
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
@@ -123,4 +124,6 @@ storage engines that are optimized for more advanced queries, such as text retri
 
 [^7]: Idreos, Stratos, and Mark Callaghan. "Key-value storage engines."
 
-[^8]: Oracle. File-Per-Table Tablespaces. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-file-per-table-tablespaces.html
+[^8]: Chandramouli, Badrish, et al. "Faster: A concurrent key-value store with in-place updates."
+
+[^9]: Oracle. File-Per-Table Tablespaces. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-file-per-table-tablespaces.html
