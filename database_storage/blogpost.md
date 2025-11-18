@@ -81,21 +81,25 @@ Faster [^8] and its follow ups are good examples of such a system.
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
+[TODO]()
+
 Storage engines that are optimized for analytics use a column-oriented storage layout with compression that minimizes the amount of data that such a query needs to read off disk.
 
-## <a id="design-knobs" href="#table-of-contents">Design knobs</a>
-
-### In-memory data structures
-
-### In-disk data structures
+## <a id="design-knobs" href="#table-of-contents">Little about hardware</a>
 
 ### Modern Storage Hardware
 
-- disk
-- SSD
-- persistent memory
+Storage has a rich history [^10], largely dominated by HDDs. They read/write data stored on the magnetic surface using a read-write head, as shown in the image below.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/hdd_3d.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+This mechanical limitation is one of the primary reasons SSDs (have no moving parts and based on 3D NAND flash) have gained popularity in recent years and now largely overtaken HDDs for many use cases. They offer more than 3 orders of magnitude performance improvement (1000X+) for random read/write IOPS and efficiency (?). That said, they have their own limitations, such as read/write asymmetry and short service life [^11]. To be specific about the former, write performance suffers after the SSD is used for a period because SSDs cannot overwrite a page (eg 4KB) directly and must erase entire blocks (eg 128 pages) to reuse them, a process that involves relocating valid data to a new block before the old one can be erased. The latter is related to NAND flash memory cells only withstanding a finite number of program/erase cycles before they begin to fail. Then garbage collection (GC) process contributes to the wear and tear of an SSD, which does affect its total potential service life.
 
 ### Modern Storage APIs
+
+libaio vs SPDK API vs io_uring
 
 - io_uring
 
@@ -127,3 +131,7 @@ storage engines that are optimized for more advanced queries, such as text retri
 [^8]: Chandramouli, Badrish, et al. "Faster: A concurrent key-value store with in-place updates."
 
 [^9]: Oracle. File-Per-Table Tablespaces. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-file-per-table-tablespaces.html
+
+[^10]: https://en.wikipedia.org/wiki/Mass_storage
+
+[^11]: https://www.alibabacloud.com/blog/storage-system-design-analysis-factors-affecting-nvme-ssd-performance-1_594375
