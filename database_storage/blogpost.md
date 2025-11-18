@@ -6,7 +6,7 @@
   - [LSM tree storage engines](#lsm-tree-se)
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
-- [Design knobs](#design-knobs)
+- [Hardware](#hardware)
 - [References](#references)
 
 ---
@@ -85,17 +85,27 @@ Faster [^8] and its follow ups are good examples of such a system.
 
 Storage engines that are optimized for analytics use a column-oriented storage layout with compression that minimizes the amount of data that such a query needs to read off disk.
 
-## <a id="design-knobs" href="#table-of-contents">Little about hardware</a>
+## <a id="hardware" href="#table-of-contents">Hardware</a>
 
 ### Modern Storage Hardware
 
-Storage has a rich history [^10], largely dominated by HDDs. They read/write data stored on the magnetic surface using a read-write head, as shown in the image below.
+The below figure [^10] shows different types of storage hardware currently in use and their related advantages and disadvantages in terms of performance, capacity, and price. General principle is that lower latency hardware is more expensive and has smaller capacity.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/storage_hierarchy.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+Nonvolatile storage has a rich history [^10], largely dominated by HDDs. They read/write data stored on the magnetic surface using a read-write head, as shown in the image below.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/hdd_3d.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
 This mechanical limitation is one of the primary reasons SSDs (have no moving parts and based on 3D NAND flash) have gained popularity in recent years and now largely overtaken HDDs for many use cases. They offer more than 3 orders of magnitude performance improvement (1000X+) for random read/write IOPS and efficiency (?). That said, they have their own limitations, such as read/write asymmetry and short service life [^11]. To be specific about the former, write performance suffers after the SSD is used for a period because SSDs cannot overwrite a page (eg 4KB) directly and must erase entire blocks (eg 128 pages) to reuse them, a process that involves relocating valid data to a new block before the old one can be erased. The latter is related to NAND flash memory cells only withstanding a finite number of program/erase cycles before they begin to fail. Then garbage collection (GC) process contributes to the wear and tear of an SSD, which does affect its total potential service life.
+
+Persistent memory combining the speed of traditional RAM with the durability of storage. It offers fast, byte-addressable access [^12]
+
+This is so called memory hierachy is one of the most important factors a storage engine is optimized around.
 
 ### Modern Storage APIs
 
@@ -132,6 +142,10 @@ storage engines that are optimized for more advanced queries, such as text retri
 
 [^9]: Oracle. File-Per-Table Tablespaces. In MySQL 9.5 Reference Manual. https://dev.mysql.com/doc/refman/9.5/en/innodb-file-per-table-tablespaces.html
 
+[^10]: Data Storage Architecture and Technologies
+
 [^10]: https://en.wikipedia.org/wiki/Mass_storage
 
 [^11]: https://www.alibabacloud.com/blog/storage-system-design-analysis-factors-affecting-nvme-ssd-performance-1_594375
+
+[^12]: How to use Persistent Memory in your Database
