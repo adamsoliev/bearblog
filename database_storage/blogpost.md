@@ -67,7 +67,7 @@ By default, a primary key or unique constraint creates a B+tree index, so you ty
 
 #### LSM-tree-based
 
-The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (e.g., short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
+The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (eg short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
 
 RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
 
@@ -75,9 +75,7 @@ RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [
 
 The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
 
-This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys. [^7]
-
-Faster [^8] and its follow ups are good examples of such a system.
+This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
@@ -114,7 +112,7 @@ Non-volatile Storage has a rich history, largely dominated by Hard Disk Drives (
 
 The mechanical nature of HDDs imposes physical latency limits. This is why Solid State Drives (SSDs)—based on 3D NAND flash with no moving parts—have largely overtaken HDDs for many use cases. SSDs offer a massive performance leap, providing over 1,000x better random read/write IOPS than HDDs with similar or better power efficiency. However, they introduce their own specific complexities [^11]:
 
-- Read/Write Asymmetry: While reads are fast, writes can degrade over time. SSDs cannot overwrite a single page (e.g., 4KB) directly; they must erase an entire block (e.g., 128 pages) to reuse it. This requires relocating valid data to a new block before erasing the old one—a process known as "Write Amplification."
+- Read/Write Asymmetry: While reads are fast, writes can degrade over time. SSDs cannot overwrite a single page (eg 4KB) directly; they must erase an entire block (eg 128 pages) to reuse it. This requires relocating valid data to a new block before erasing the old one—a process known as "Write Amplification."
 
 - Service Life: NAND flash cells withstand a finite number of program/erase cycles before failing. The internal Garbage Collection (GC) process required to manage blocks further contributes to this wear.
 
@@ -138,9 +136,23 @@ Navigating this memory hierarchy is one of the primary challenges a database sto
 
 [google scholar – search 1](https://scholar.google.com/scholar_labs/search/session/11574651912704045173?hl=en)
 
-libaio vs SPDK API vs io_uring
+The below shows currently available Linux storage I/O interfaces. (a) and (b) are the oldest where (a) is blocking I/O API while (b) is asynch I/O. SPDK was developed by Intel in 2010s while io_uring is the latest addition to this list.
 
-- io_uring
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/linux_io_interfaces.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+In POSIX (a), you submit your read request to the kernel with `pread` syscall. The kernel puts it into the queue, fetches data from the SSD and interrupts your application when the response is ready.
+
+libaio relies on two syscalls – `io_submit` to submit one or more requests and `io_get_events` to retrieve the completed I/O requests. This two syscall per I/O request is an important factor in its performance limitation.
+
+SPDK essentially maps storage hardware driver's queues to the user-space, allowing the application to directly submit I/O requests to the SQs and poll completed requests from the CQs without the need for interrupts or system calls.
+
+io_uring is somewhere in the middle between libaio and SPDK, having multiple modes to operate on. Its unique feature is having two ring data structures that are mapped into user space and shared with the kernel. Its modes of operation are shown below.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
 
 ### Design knobs around working with the underlying memory/storage
 
