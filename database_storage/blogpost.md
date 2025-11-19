@@ -134,9 +134,7 @@ Navigating this memory hierarchy is one of the primary challenges a database sto
 
 ### Modern Storage APIs
 
-[google scholar – search 1](https://scholar.google.com/scholar_labs/search/session/11574651912704045173?hl=en)
-
-The below shows currently available Linux storage I/O interfaces. (a) and (b) are the oldest where (a) is blocking I/O API while (b) is asynch I/O. SPDK was developed by Intel in 2010s while io_uring is the latest addition to this list.
+The below shows currently available Linux storage I/O interfaces [^13]. (a) and (b) are the oldest where (a) is blocking I/O API while (b) is asynch I/O. SPDK was developed by Intel in 2010s while io_uring is the latest addition to this list.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/linux_io_interfaces.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
@@ -148,20 +146,17 @@ libaio relies on two syscalls – `io_submit` to submit one or more requests and
 
 SPDK essentially maps storage hardware driver's queues to the user-space, allowing the application to directly submit I/O requests to the SQs and poll completed requests from the CQs without the need for interrupts or system calls.
 
-io_uring is somewhere in the middle between libaio and SPDK, having multiple modes to operate on. Its unique feature is having two ring data structures that are mapped into user space and shared with the kernel. Its modes of operation are shown below.
+io_uring is somewhere in the middle between libaio and SPDK, having multiple modes to operate on. Its unique feature is having two ring data structures that are mapped into user space and shared with the kernel. Its modes of operation are shown below [^14].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-### Design knobs around working with the underlying memory/storage
+- (a) the application makes two `io_uring_enter` syscalls – one to notify kernel about I/O request(s) and another to get results of the completed I/O requests.
+- (b) similar to (a) but in this case, the application instructs the kernel to rely on polling instead of interrupts when the kernel is talking to SSD driver.
+- $(c$) the application asks the kernel to create a separate kernel thread per io_uring context to poll on both sides. Notice that this doesn't involve any syscalls.
 
-- work with OS's file system
-- work with mmap
-- work directly with storage hardware
-- work with remote storage
-
-storage engines that are optimized for more advanced queries, such as text retrieval
+Interestingly, most popular relational databases use POSIX with `O_DIRECT` option or its equivalent.
 
 ## <a id="references" href="#table-of-contents">References</a>
 
@@ -188,3 +183,7 @@ storage engines that are optimized for more advanced queries, such as text retri
 [^11]: Alibaba Clouder. "Storage System Design Analysis: Factors Affecting NVMe SSD Performance (1)." Alibaba Cloud Community Blog, 15 Jan. 2019, www.alibabacloud.com/blog/storage-system-design-analysis-factors-affecting-nvme-ssd-performance-1_594375.
 
 [^12]: Koutsoukos, Dimitrios, et al. "How to use persistent memory in your database." arXiv preprint arXiv:2112.00425 (2021).
+
+[^13]: Haas, Gabriel, and Viktor Leis. "What modern nvme storage can do, and how to exploit it: High-performance i/o for high-performance storage engines."
+
+[^14]: Didona, Diego, et al. "Understanding modern storage APIs: a systematic study of libaio, SPDK, and io_uring."
