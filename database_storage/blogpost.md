@@ -1,6 +1,6 @@
 #### Table of Contents
 
-- [Database Storage](#db-storage)
+- [What and why](#what-and-why)
 - [OLTP](#oltp)
   - [B+tree storage engines](#b-plus-se)
   - [LSM tree storage engines](#lsm-tree-se)
@@ -11,7 +11,7 @@
 
 ---
 
-## <a id="db-storage" href="#table-of-contents">Database storage</a>
+## <a id="what-and-why" href="#table-of-contents">What and why</a>
 
 There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)).
 
@@ -106,19 +106,19 @@ Cache memory is typically implemented using SRAM (Static Random Access Memory). 
 
 Main Memory (RAM) is the primary storage directly accessible to the CPU via the memory bus. The CPU fetches instructions and active data from here. Main memory is usually implemented with DRAM, which uses only one transistor and one capacitor per bit, allowing for higher density at a lower cost than SRAM.
 
-Non-volatile Storage has a rich history, largely dominated by Hard Disk Drives (HDDs) [^10]. HDDs read and write data using a magnetic read-write head that floats just nanometers above a rapidly spinning, magnetically-coated platter, as shown below.
+Non-volatile Storage has a rich history, largely dominated by Hard Disk Drives (HDDs) until recently [^10]. HDDs read and write data using a magnetic read-write head that floats just nanometers above a rapidly spinning, magnetically-coated platter, as shown below.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/hdd_3d.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-The mechanical nature of HDDs imposes physical latency limits. This is why Solid State Drives (SSDs)—based on 3D NAND flash with no moving parts—have largely overtaken HDDs for many use cases. SSDs offer a massive performance leap, providing over 1,000x better random read/write IOPS than HDDs with similar or better power efficiency. However, they introduce specific complexities [^11]:
+The mechanical nature of HDDs imposes physical latency limits. This is why Solid State Drives (SSDs)—based on 3D NAND flash with no moving parts—have largely overtaken HDDs for many use cases. SSDs offer a massive performance leap, providing over 1,000x better random read/write IOPS than HDDs with similar or better power efficiency. However, they introduce their own specific complexities [^11]:
 
 - Read/Write Asymmetry: While reads are fast, writes can degrade over time. SSDs cannot overwrite a single page (e.g., 4KB) directly; they must erase an entire block (e.g., 128 pages) to reuse it. This requires relocating valid data to a new block before erasing the old one—a process known as "Write Amplification."
 
 - Service Life: NAND flash cells withstand a finite number of program/erase cycles before failing. The internal Garbage Collection (GC) process required to manage blocks further contributes to this wear.
 
-For performance comparison, consider the standard metrics for random and sequential access:
+For performance comparison, consider the following rough metrics for random and sequential access:
 
 - HDD:
   - Random Reads (4KB): ~100 IOPS (approx. 10ms latency).
