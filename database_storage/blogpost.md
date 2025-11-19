@@ -15,15 +15,15 @@
 
 There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)).
 
-tl;dr:
+Their tl;dr is:
 
 A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees). The former provides balanced read and write performance, while the latter is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
 
-My goal here is to build on that summary and shallowly sketch the current storage-engine landscape. In this regard, two broad workload types dominate: OLTP and OLAP (bear with me for a second for the terminology). OLTP workloads issue many short reads and/or writes that touch only a few records at a time. OLAP workloads run long, complex analytical queries that scan large segments of a dataset. Given this contrast between workloads, storage-engine designs follow suit.
+My goal here is to build on that summary and shallowly sketch the current storage-engine landscape. In this regard, two broad workload types dominate: OLTP and OLAP. The former workloads issue many short reads and/or writes that touch only a few records at a time. The latter workloads run long, complex analytical queries that scan large segments of a dataset. Given this contrast between workloads, storage-engine designs follow suit.
 
 ## <a id="oltp" href="#table-of-contents">OLTP</a>
 
-Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
+Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing specific products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
 
 While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engines. Based on these needs, one way to classify OLTP storage engines is:
 
@@ -120,12 +120,12 @@ The mechanical nature of HDDs imposes physical latency limits. This is why Solid
 
 For performance comparison, consider the standard metrics for random and sequential access:
 
-- HDD Performance:
+- HDD:
   - Random Reads (4KB): ~100 IOPS (approx. 10ms latency).
   - Sequential Reads: ~40k IOPS, translating into ~150 MB/s throughput.
 
-- SSD Performance (QD-32):
-  - Note that performance is typically measured at Queue Depth 32 (QD-32).
+- SSD (QD-32):
+  - _Note that performance is typically measured at Queue Depth 32 (QD-32)_.
   - Random Reads (4KB): ~100k IOPS (SATA) to ~1M IOPS (NVMe PCIe 5).
   - Random Writes (4KB): ~80k IOPS (SATA) to ~800k IOPS (NVMe PCIe 5).
   - Sequential Reads: ~125k IOPS (SATA) to ~3.5M IOPS (NVMe PCIe 5). In throughput terms, ~500 MB/s (SATA) to ~14 GB/s (NVMe PCIe 5). Note that throughput is often bottlenecked by the interconnect (bus).
