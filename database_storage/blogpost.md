@@ -142,23 +142,23 @@ The below shows currently available Linux storage I/O interfaces [^13]. (a) and 
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/linux_io_interfaces.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-POSIX defines sync and async I/O operations. In the former, you make a `read()`, your thread sleeps until data arrives. In the later, you make a `aio_read()`, your thread returns immediately but the library spawns user-space helper thread to perform blocking I/O in the background. Normally (buffered I/O), in either case, you incur one systel call and two data copies (the device -> the kernel space -> the user space) overhead per I/O request. If you use `O_DIRECT` flag, however, the data is copied from the device directly to the user space. Most databases use this option.
+POSIX defines sync and async I/O operations. In the former, you make a `read()`, your thread sleeps until data arrives. In the later, you make a `aio_read()`, your thread returns immediately but the library spawns user-space helper thread to perform blocking I/O in the background. Normally (buffered I/O), in either case, you incur one systel call and two data copies (the device -> the kernel space -> the user space) overhead per I/O request. If you use `O_DIRECT` flag, however, the data is copied from the device directly to the user space. Most databases use this option (POSIX sync with `O_DIRECT` flag).
 
 In libaio, asynchronous mechanism is at the kernel level – you make a `io_submit()` to queue one or more requests, your thread returns immediately and the kernel carries out the I/O in the background. you can call a `io_getevents` to retrieve completed I/O requests. libaio is almost always used with `O_DIRECT` to avoid extra data copy, similar to the above. So your cost is two syscalls per I/O request.
 
-io_uring adds two ring buffers for read/write commands that are shared between the application and the kernel – this avoids metadata copy overhead the above two incur by default. Normally, you put a I/O request to the SQ, make a `io_uring_enter` to notify the kernel. It carries out the async I/O in the background and puts the responses in the CQ. You make another `io_uring_enter` to wait for completed I/O requests. In this case, you incur two syscalls per I/O request but save on metadata copy cost. io_uring also allows you to avoid both syscalls but in that mode, it spawns a separate kernel thread per io_uring context – the kernel polls the SQ for your requests and your application polls the CQ for the kernel responses. In this case, you incur one kernel thread per io_uring context overhead. Again, io_uring is almost always used with `O_DIRECT`. These modes of operation are shown below [^14].
+io_uring adds two ring buffers for read/write commands that are shared between the application and the kernel – this avoids metadata copy overhead the above two incur by default. These modes of operation are shown below [^14].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-SPDK bypasses the kernel by essentially mapping storage hardware driver's queues to the user-space, allowing the application to directly submit I/O requests to the SQs and poll completed requests from the CQs without the need for interrupts or system calls.
+- (a) You put a I/O request to the SQ, make a `io_uring_enter` to notify the kernel. It carries out the async I/O in the background and puts the responses in the CQ. You make another `io_uring_enter` to wait for completed I/O requests. In this case, you incur two syscalls per I/O request but save on metadata copy cost.
+- (b) Similar to (a) but in this case, the application instructs the kernel to rely on polling instead of interrupts when the kernel is talking to SSD driver.
+- $(c$) io_uring also allows you to avoid both syscalls by spawning a separate kernel thread per io_uring context – that kernel thread polls the SQ for your requests and your application polls the CQ for the kernel responses. In this case, you incur one kernel thread per io_uring context overhead.
 
-- (a) the application makes two `io_uring_enter` syscalls – one to notify kernel about I/O request(s) and another to get results of the completed I/O requests.
-- (b) similar to (a) but in this case, the application instructs the kernel to rely on polling instead of interrupts when the kernel is talking to SSD driver.
-- $(c$) the application asks the kernel to create a separate kernel thread per io_uring context to poll on both sides. Notice that this doesn't involve any syscalls.
+Again, io_uring is almost always used with `O_DIRECT`.
 
-Interestingly, most popular relational databases use POSIX with `O_DIRECT` option or its equivalent.
+SPDK bypasses the kernel by mapping NVMe driver's queues to the user-space, allowing the application to directly interact with the device driver without the need for interrupts or system calls.
 
 ## <a id="references" href="#table-of-contents">References</a>
 
