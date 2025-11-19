@@ -87,6 +87,8 @@ Storage engines that are optimized for analytics use a column-oriented storage l
 
 ### Modern Storage Hardware
 
+Understanding storage hardware and navigating corresponding memory hierarchy is one of the most important factors affecting a database storage engine performance, hence it worthwhile to delve a bit deeper into it.
+
 The figure below [^9] illustrates the different types of storage hardware currently in use, highlighting the trade-offs between performance, capacity, and price. One of the key principles of the memory hierarchy is that lower latency hardware is inevitably more expensive and limited in capacity.
 
 <div style="text-align: center;">
@@ -130,9 +132,9 @@ For performance comparison, consider the following rough metrics for random and 
 
 Emerging persistent memory technologies bridge the gap between volatile RAM and non-volatile storage. They combine the durability of storage with the byte-addressable access speeds of traditional RAM [^12].
 
-Navigating this memory hierarchy is one of the primary challenges a database storage engine must solve to optimize performance.
-
 ### Modern Storage APIs
+
+There seems to be a lot of focus on storage APIs nowadays since fast SSDs and the stalled CPU performance make the underlying API's overhead significant. For example, when storage took 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
 
 The below shows currently available Linux storage I/O interfaces [^13]. (a) and (b) are the oldest where (a) is blocking I/O API while (b) is asynch I/O. SPDK was developed by Intel in 2010s while io_uring is the latest addition to this list.
 
@@ -140,17 +142,17 @@ The below shows currently available Linux storage I/O interfaces [^13]. (a) and 
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/linux_io_interfaces.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-In POSIX (a), you submit your read request to the kernel with `pread` syscall. The kernel puts it into the queue, fetches data from the SSD and interrupts your application when the response is ready.
+POSIX defines sync and async I/O operations. In the former, you make a `read()`, your thread sleeps until data arrives. In the later, you make a `aio_read()`, your thread returns immediately but the library spawns user-space helper thread to perform blocking I/O in the background. Normally (buffered I/O), in either case, you incur one systel call and two data copies (the device -> the kernel space -> the user space) overhead per I/O request. If you use `O_DIRECT` flag, however, the data is copied from the device directly to the user space. Most databases use this option.
 
-libaio relies on two syscalls – `io_submit` to submit one or more requests and `io_get_events` to retrieve the completed I/O requests. This two syscall per I/O request is an important factor in its performance limitation.
+In libaio, asynchronous mechanism is at the kernel level – you make a `io_submit()` to queue one or more requests, your thread returns immediately and the kernel carries out the I/O in the background. you can call a `io_getevents` to retrieve completed I/O requests. libaio is almost always used with `O_DIRECT` to avoid extra data copy, similar to the above. So your cost is two syscalls per I/O request.
 
-SPDK essentially maps storage hardware driver's queues to the user-space, allowing the application to directly submit I/O requests to the SQs and poll completed requests from the CQs without the need for interrupts or system calls.
-
-io_uring is somewhere in the middle between libaio and SPDK, having multiple modes to operate on. Its unique feature is having two ring data structures that are mapped into user space and shared with the kernel. Its modes of operation are shown below [^14].
+io_uring adds two ring buffers for read/write commands that are shared between the application and the kernel – this avoids metadata copy overhead the above two incur by default. Normally, you put a I/O request to the SQ, make a `io_uring_enter` to notify the kernel. It carries out the async I/O in the background and puts the responses in the CQ. You make another `io_uring_enter` to wait for completed I/O requests. In this case, you incur two syscalls per I/O request but save on metadata copy cost. io_uring also allows you to avoid both syscalls but in that mode, it spawns a separate kernel thread per io_uring context – the kernel polls the SQ for your requests and your application polls the CQ for the kernel responses. In this case, you incur one kernel thread per io_uring context overhead. Again, io_uring is almost always used with `O_DIRECT`. These modes of operation are shown below [^14].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
+
+SPDK bypasses the kernel by essentially mapping storage hardware driver's queues to the user-space, allowing the application to directly submit I/O requests to the SQs and poll completed requests from the CQs without the need for interrupts or system calls.
 
 - (a) the application makes two `io_uring_enter` syscalls – one to notify kernel about I/O request(s) and another to get results of the completed I/O requests.
 - (b) similar to (a) but in this case, the application instructs the kernel to rely on polling instead of interrupts when the kernel is talking to SSD driver.
