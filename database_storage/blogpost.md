@@ -134,31 +134,31 @@ Emerging persistent memory technologies bridge the gap between volatile RAM and 
 
 ### Modern Storage APIs
 
-There seems to be a lot of focus on storage APIs nowadays since fast SSDs and the stalled CPU performance make the underlying API's overhead significant. For example, when storage took 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
+Modern storage APIs are an important area today because their cost is one of the performance bottlenecks. For example, when storage took 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
 
-The below shows currently available Linux storage I/O interfaces [^13]. (a) and (b) are the oldest where (a) is blocking I/O API while (b) is asynch I/O. SPDK was developed by Intel in 2010s while io_uring is the latest addition to this list.
+The diagram below shows the currently available Linux storage I/O interfaces [^13].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/linux_io_interfaces.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-POSIX defines sync and async I/O operations. In the former, you make a `read()`, your thread sleeps until data arrives. In the later, you make a `aio_read()`, your thread returns immediately but the library spawns user-space helper thread to perform blocking I/O in the background. Normally (buffered I/O), in either case, you incur one systel call and two data copies (the device -> the kernel space -> the user space) overhead per I/O request. If you use `O_DIRECT` flag, however, the data is copied from the device directly to the user space. Most databases use this option (POSIX sync with `O_DIRECT` flag).
+POSIX defines synchronous and asynchronous I/O. With synchronous I/O, a `pread()` call blocks your thread until the data is ready. With asynchronous I/O, an `aio_read()` returns immediately while a user-space helper thread (spawned by glibc) performs the blocking call in the background. With buffered I/O, both modes pay the same costs: one system call per request and two data copies (device → kernel → user). If you open the file with `O_DIRECT`, the kernel bypasses the page cache and copies data directly from the device into user space, avoiding the second copy. Most databases use synchronous I/O with `O_DIRECT` for this reason (more?).
 
-In libaio, asynchronous mechanism is at the kernel level – you make a `io_submit()` to queue one or more requests, your thread returns immediately and the kernel carries out the I/O in the background. you can call a `io_getevents` to retrieve completed I/O requests. libaio is almost always used with `O_DIRECT` to avoid extra data copy, similar to the above. So your cost is two syscalls per I/O request.
+In `libaio`, asynchrony is handled in the kernel. You call `io_submit()` to queue one or more requests; the call returns immediately while the kernel executes the I/O. You later call `io_getevents()` to collect completions. `libaio` is almost always used with `O_DIRECT` to avoid the extra copy through the page cache. In this case, the effective cost is two system calls per I/O request: one to submit and one to get completions.
 
-io_uring adds two ring buffers for read/write commands that are shared between the application and the kernel – this avoids metadata copy overhead the above two incur by default. These modes of operation are shown below [^14].
+`io_uring` introduces submission and completion ring buffers shared between the application and the kernel. This removes the metadata-copy overhead that POSIX and libaio pay by default. The main modes of operation are shown below. [^14].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-- (a) You put a I/O request to the SQ, make a `io_uring_enter` to notify the kernel. It carries out the async I/O in the background and puts the responses in the CQ. You make another `io_uring_enter` to wait for completed I/O requests. In this case, you incur two syscalls per I/O request but save on metadata copy cost.
-- (b) Similar to (a) but in this case, the application instructs the kernel to rely on polling instead of interrupts when the kernel is talking to SSD driver.
-- $(c$) io_uring also allows you to avoid both syscalls by spawning a separate kernel thread per io_uring context – that kernel thread polls the SQ for your requests and your application polls the CQ for the kernel responses. In this case, you incur one kernel thread per io_uring context overhead.
+- (a) The application writes a request into the submission queue (SQ) and issues `io_uring_enter()` to notify the kernel. The kernel performs the I/O asynchronously and posts results into the completion queue (CQ). The application calls `io_uring_enter()` again to wait for completions. This still costs two syscalls per request but avoids the metadata copy.
+- (b) Same as (a), but the application tells the kernel to poll the hardware instead of relying on interrupts when communicating with the SSD driver.
+- $(c$) io_uring can eliminate both syscalls by creating a dedicated kernel thread per io_uring context. That thread polls the SQ, and the application polls the CQ. The tradeoff is the extra kernel thread.
 
-Again, io_uring is almost always used with `O_DIRECT`.
+As with `libaio`, `io_uring` is almost always used with `O_DIRECT`.
 
-SPDK bypasses the kernel by mapping NVMe driver's queues to the user-space, allowing the application to directly interact with the device driver without the need for interrupts or system calls.
+SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into user space. The application issues commands directly to the device driver, avoiding interrupts and system calls altogether.
 
 ## <a id="references" href="#table-of-contents">References</a>
 
