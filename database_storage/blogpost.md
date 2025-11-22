@@ -85,26 +85,26 @@ This design makes writes almost entirely sequential, supporting extremely high i
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
-The logical access pattern of an OLAP system typically involves scanning specific columns across millions of rows, rather than retrieving all columns for a few specific rows. Consequently, these systems use a column-oriented format, storing values from each column contiguously [^15].
+The logical access pattern of an OLAP system typically involves scanning specific columns across millions of rows, rather than retrieving all columns for a few specific rows. Consequently, these systems use a column-oriented format, storing values from each column contiguously.
 
-In practice, however, storage engines rarely use a pure columnar approach. Because queries often filter by a specific range (eg time), engines use a hybrid layout. The table is horizontally partitioned into blocks of rows (often called row groups), and within those blocks, column values are stored separately. This is illustrated in the image below.
+In practice, however, storage engines rarely use a pure columnar approach. Because queries often filter by a specific range (eg time), engines use a hybrid layout. The table is horizontally partitioned into blocks of rows (often called row groups), and within those blocks, column values are stored separately. This is illustrated in the image below [^15].
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
 This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Common storage formats utilizing this layout include Parquet, ORC, Lance, and Nimble. Because these systems must frequently reconstruct rows from separate column streams, the order of rows is strictly maintained across all columns within a block.
 
-One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [^16] for a list of potential compressions.
+One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [this](tab:https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf) for a list of potential compressions.
 
-### The Metadata Hierarchy
+#### The Metadata Hierarchy
 
 In modern OLAP architectures, raw data files are wrapped in additional layers of metadata:
 
 - Table Formats: These files track which data files belong to a specific table, manage schemas, and store file-level statistics (min/max values). Apache Iceberg and Databricks’ Delta are the industry standards here.
 - Data Catalogs: This layer sits above table formats, defining which tables constitute a database and handling namespace operations like creating, renaming, or dropping tables. Snowflake’s Polaris and Databricks’ Unity Catalog are common examples.
 
-### Handling Writes
+#### Handling Writes
 
 While columnar storage is excellent for reading, it is inefficient for writing individual rows, particularly in sorted tables. To address this, OLAP systems typically use a log-structured approach.
 
@@ -220,5 +220,3 @@ SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into use
 [^14]: Didona, Diego, et al. "Understanding modern storage APIs: a systematic study of libaio, SPDK, and io_uring."
 
 [^15]: https://vutr.substack.com/p/we-might-not-completely-understand
-
-[^16]: https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf
