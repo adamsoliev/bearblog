@@ -6,7 +6,7 @@
   - [LSM tree storage engines](#lsm-tree-se)
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
-- [Hardware](#hardware)
+- [The Lower Layers](#the-lower-layers)
 - [References](#references)
 
 ---
@@ -112,7 +112,7 @@ Writes are first directed to a row-oriented, sorted, in-memory buffer (often cal
 
 During a read, the query engine examines both the columnar data on disk and the recent writes in the memory buffer, merging the two results seamlessly so the user sees a consistent view of the data.
 
-## <a id="hardware" href="#table-of-contents">Hardware</a>
+## <a id="the-lower-layers" href="#table-of-contents">The Lower Layers</a>
 
 ### Modern Storage Hardware
 
@@ -163,7 +163,7 @@ Emerging persistent memory technologies bridge the gap between volatile RAM and 
 
 ### Modern Storage APIs
 
-Modern storage APIs are an important area today because their cost is one of the performance bottlenecks. For example, when storage took 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
+Modern storage APIs are an important area today because their cost is one of the performance bottlenecks. For example, when storage took say 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
 
 The diagram below shows the currently available Linux storage I/O interfaces [^13].
 
