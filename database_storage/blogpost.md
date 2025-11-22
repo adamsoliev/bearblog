@@ -65,11 +65,15 @@ By default, a primary key or unique constraint creates a B+tree index, so you ty
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
+[B+tree variants – eg write optimized]()
+
 #### LSM-tree-based
 
 The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (eg short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
 
 RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
+
+[LSM-tree variants – eg small range read optimized]()
 
 #### LSH-table-based
 
@@ -77,11 +81,25 @@ The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by droppin
 
 This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
 
+[LSH-tree variants – eg range read optimized]()
+
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
-[TODO]()
+Logical data access pattern of OLAP system is accessing multiple columns of all rows as opposed to all columns of a multiple rows. Hence, these systems store data in column-oriented format – storing all the values from each column together [^15]. Well not really, since most queries to these systems has some sort of range, hence they actually use a hybrid – breaking table into blocks of rows (eg based on time range) and then storing the values from each column separately, as show in the image below. This hybrid layout allows them to be surgical in fetching specific blocks for a specific range. Parquet, ORC, Lance, or Nimble are examples of such storage formats.
 
-Storage engines that are optimized for analytics use a column-oriented storage layout with compression that minimizes the amount of data that such a query needs to read off disk.
+Note that these systems often need to reconstruct rows, so they ensure that each column stores the rows in the same order. Otherwise, you wound't know which items in the columns belong to the same row.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
+</div>
+
+In OLAP system, in addition to data files (talked about above), you need table format files (metadata about tables) that tell you about table's schema, which files belong to a table, any stats. Apache Iceberg or Databricks’s Delta format are commonly used here. Moreover, you also need data catalog files (metadata about database) telling you which tables make up a database; they are often used for creating, renaming, and droping tables. Snowflake’s Polaris and Databricks’s Unity Catalog are commonly used here.
+
+Another important factor about column-layout is their tendency to compress well. See [^16] for a list of potential comopressions.
+
+With columnar storage, writing an individual row somewhere in the middle of a sorted table would be very inefficient, so writes are performed in bulk. A log-structured approach is often used to perform writes in batches. All writes first go to a row-oriented, sorted, in-memory store. When enough writes have accumulated, they are merged with the column-encoded files on disk and written to new files in bulk. As old files remain immutable, and new files are written in one go, object storage is well suited for storing these files.
+
+Note that queries need to examine both the column data on disk and the recent writes in memory, and combine the two. The query execution engine often hides this distinction from the user.
 
 ## <a id="hardware" href="#table-of-contents">Hardware</a>
 
@@ -189,3 +207,7 @@ SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into use
 [^13]: Haas, Gabriel, and Viktor Leis. "What modern nvme storage can do, and how to exploit it: High-performance i/o for high-performance storage engines."
 
 [^14]: Didona, Diego, et al. "Understanding modern storage APIs: a systematic study of libaio, SPDK, and io_uring."
+
+[^15]: https://vutr.substack.com/p/we-might-not-completely-understand
+
+[^16]: https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf
