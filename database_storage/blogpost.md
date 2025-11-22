@@ -93,13 +93,13 @@ In practice, however, storage engines rarely use a pure columnar approach. Becau
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
 </div>
 
-This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Common storage formats utilizing this layout include Parquet, ORC, Lance, and Nimble. Because these systems must frequently reconstruct rows from separate column streams, the order of rows is strictly maintained across all columns within a block.
+This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Within each row group, all columns store values in the same positional row order, so the engine can reconstruct rows by aligning the i-th value across columns. Because OLAP systems must frequently reassemble rows, this positional structure is essential. Parquet and ORC are the industry standards here, each with their own limitations [^16].
 
 One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [this](tab:https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf) for a list of potential compressions.
 
 #### The Metadata Hierarchy
 
-In modern OLAP architectures, raw data files are wrapped in additional layers of metadata:
+In modern OLAP architectures, raw data files are wrapped in additional layers of metadata (eg to support ACID transactions [^16]):
 
 - Table Formats: These files track which data files belong to a specific table, manage schemas, and store file-level statistics (min/max values). Apache Iceberg and Databricks’ Delta are the industry standards here.
 - Data Catalogs: This layer sits above table formats, defining which tables constitute a database and handling namespace operations like creating, renaming, or dropping tables. Snowflake’s Polaris and Databricks’ Unity Catalog are common examples.
@@ -219,4 +219,6 @@ SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into use
 
 [^14]: Didona, Diego, et al. "Understanding modern storage APIs: a systematic study of libaio, SPDK, and io_uring."
 
-[^15]: https://vutr.substack.com/p/we-might-not-completely-understand
+[^15]: Trinh, Vu. "We might not fully understand the column store!" https://vutr.substack.com/p/we-might-not-completely-understand
+
+[^16]: Zeng, Xinyu, et al. "An empirical evaluation of columnar storage formats."
