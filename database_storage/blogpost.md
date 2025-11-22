@@ -85,21 +85,32 @@ This design makes writes almost entirely sequential, supporting extremely high i
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
-Logical data access pattern of OLAP system is accessing multiple columns of all rows as opposed to all columns of a multiple rows. Hence, these systems store data in column-oriented format – storing all the values from each column together [^15]. Well not really, since most queries to these systems has some sort of range, hence they actually use a hybrid – breaking table into blocks of rows (eg based on time range) and then storing the values from each column separately, as show in the image below. This hybrid layout allows them to be surgical in fetching specific blocks for a specific range. Parquet, ORC, Lance, or Nimble are examples of such storage formats.
+The logical access pattern of an OLAP system typically involves scanning specific columns across millions of rows, rather than retrieving all columns for a few specific rows. Consequently, these systems use a column-oriented format, storing values from each column contiguously [^15].
 
-Note that these systems often need to reconstruct rows, so they ensure that each column stores the rows in the same order. Otherwise, you wound't know which items in the columns belong to the same row.
+In practice, however, storage engines rarely use a pure columnar approach. Because queries often filter by a specific range (eg time), engines use a hybrid layout. The table is horizontally partitioned into blocks of rows (often called row groups), and within those blocks, column values are stored separately. This is illustrated in the image below.
 
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
 </div>
 
-In OLAP system, in addition to data files (talked about above), you need table format files (metadata about tables) that tell you about table's schema, which files belong to a table, any stats. Apache Iceberg or Databricks’s Delta format are commonly used here. Moreover, you also need data catalog files (metadata about database) telling you which tables make up a database; they are often used for creating, renaming, and droping tables. Snowflake’s Polaris and Databricks’s Unity Catalog are commonly used here.
+This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Common storage formats utilizing this layout include Parquet, ORC, Lance, and Nimble. Because these systems must frequently reconstruct rows from separate column streams, the order of rows is strictly maintained across all columns within a block.
 
-Another important factor about column-layout is their tendency to compress well. See [^16] for a list of potential comopressions.
+One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [^16] for a list of potential compressions.
 
-With columnar storage, writing an individual row somewhere in the middle of a sorted table would be very inefficient, so writes are performed in bulk. A log-structured approach is often used to perform writes in batches. All writes first go to a row-oriented, sorted, in-memory store. When enough writes have accumulated, they are merged with the column-encoded files on disk and written to new files in bulk. As old files remain immutable, and new files are written in one go, object storage is well suited for storing these files.
+### The Metadata Hierarchy
 
-Note that queries need to examine both the column data on disk and the recent writes in memory, and combine the two. The query execution engine often hides this distinction from the user.
+In modern OLAP architectures, raw data files are wrapped in additional layers of metadata:
+
+- Table Formats: These files track which data files belong to a specific table, manage schemas, and store file-level statistics (min/max values). Apache Iceberg and Databricks’ Delta are the industry standards here.
+- Data Catalogs: This layer sits above table formats, defining which tables constitute a database and handling namespace operations like creating, renaming, or dropping tables. Snowflake’s Polaris and Databricks’ Unity Catalog are common examples.
+
+### Handling Writes
+
+While columnar storage is excellent for reading, it is inefficient for writing individual rows, particularly in sorted tables. To address this, OLAP systems typically use a log-structured approach.
+
+Writes are first directed to a row-oriented, sorted, in-memory buffer (often called a memtable). When this buffer fills, the data is sorted, converted to the columnar format, and flushed to disk as a new immutable file. Because files are written in bulk and never modified in place, object storage is an ideal backend for this architecture.
+
+During a read, the query engine examines both the columnar data on disk and the recent writes in the memory buffer, merging the two results seamlessly so the user sees a consistent view of the data.
 
 ## <a id="hardware" href="#table-of-contents">Hardware</a>
 
