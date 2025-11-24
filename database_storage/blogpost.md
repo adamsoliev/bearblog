@@ -15,11 +15,18 @@
 
 There’s plenty of material online about storage engines (eg see [this](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-the-basics/) and [its follow-up](tab:https://www.yugabyte.com/blog/a-busy-developers-guide-to-database-storage-engines-advanced-topics/)).
 
-Their tl;dr is:
+Tl;dr:
 
-A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees). The former provides balanced read and write performance, while the latter is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
+- A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees).
+- B+tree provides balanced read and write performance, while LSM-tree is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
 
-My goal here is to build on that summary and shallowly sketch the current storage-engine landscape. In this regard, two broad workload types dominate: OLTP and OLAP. The former workloads issue many short reads and/or writes that touch only a few records at a time. The latter workloads run long, complex analytical queries that scan large segments of a dataset. Given this contrast between workloads, storage-engine designs follow suit.
+My goal here is to build on that summary and shallowly sketch the current storage-engine landscape, starting with some background.
+
+For the first few decades, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained later). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
+
+As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stress the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize fast sequential throughput efficiently.
+
+The following sections outline the storage-engine designs used for each workload type.
 
 ## <a id="oltp" href="#table-of-contents">OLTP</a>
 
@@ -65,23 +72,17 @@ By default, a primary key or unique constraint creates a B+tree index, so you ty
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-[B+tree variants – eg write optimized]()
-
 #### LSM-tree-based
 
 The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (eg short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
 
 RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
 
-[LSM-tree variants – eg small range read optimized]()
-
 #### LSH-table-based
 
 The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
 
 This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
-
-[LSH-tree variants – eg range read optimized]()
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
