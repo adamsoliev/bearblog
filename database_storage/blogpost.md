@@ -24,7 +24,7 @@ My goal here is to build on that summary and shallowly sketch the current storag
 
 For the first few decades, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained later). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
 
-As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stress the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize fast sequential throughput efficiently.
+As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stress the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize high sequential throughput efficiently.
 
 The following sections outline the storage-engine designs used for each workload type.
 
@@ -32,7 +32,7 @@ The following sections outline the storage-engine designs used for each workload
 
 Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing specific products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
 
-While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engines. Based on these needs, one way to classify OLTP storage engines is:
+While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engine designs. For example:
 
 - **B+tree-based**: ideal for balanced read-write workloads.
 - **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
@@ -83,6 +83,16 @@ RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [
 The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
 
 This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
+
+### Buffering Semantics Across OLTP Storage Engines
+
+A buffer manager’s importance differs sharply across these storage-engine families.
+
+In B+tree-based engines, the buffer pool is critical. All reads and all in-place writes go through it, making it the main sync point. Eviction and dirty-page scheduling materially affect performance because B+trees repeatedly touch a small, high-reuse working set (root, internal nodes, hot leaves).
+
+In LSM-tree-based engines, buffering isn't in the write path. Read performance still depends heavily on caching (block cache, filter/index block cache).
+
+In log-structured hash-table designs, the buffer manager’s role shrinks further. These systems use append-only segments and in-memory hash indexes and typically lean on the OS page cache rather than a database buffer pool. Caching still mitigates read amplification, but the engine’s own buffering layer is minimal.
 
 ## <a id="olap" href="#table-of-contents">OLAP</a>
 
