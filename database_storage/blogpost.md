@@ -7,6 +7,7 @@
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
 - [The Lower Layers](#the-lower-layers)
+- [Conclusion](#conclusion)
 - [References](#references)
 
 ---
@@ -200,6 +201,10 @@ As with `libaio`, `io_uring` is almost always used with `O_DIRECT`.
 
 SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into user space. The application issues commands directly to the device driver, avoiding interrupts and system calls altogether.
 
+## <a id="conclusion" href="#conclusion">Conclusion</a>
+
+Like everything in systems, storage engines are a set of trade-offs. I have covered some factors affecting these trade-offs while omitting others (eg the effect of public cloud hardware[^17]). Ultimately, a storage engine is designed for a particular workload, targeting a specific balance of the write, read, and space amplification trifecta.
+
 ## <a id="references" href="#table-of-contents">References</a>
 
 [^1]: Bayer, Rudolf, and Edward McCreight. "Organization and maintenance of large ordered indices."
@@ -233,3 +238,5 @@ SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into use
 [^15]: Trinh, Vu. "We might not fully understand the column store!" https://vutr.substack.com/p/we-might-not-completely-understand
 
 [^16]: Zeng, Xinyu, et al. "An empirical evaluation of columnar storage formats."
+
+[^17]: Steinert, Till, et al. "Cloudspecs: Cloud Hardware Evolution Through the Looking Glass."
