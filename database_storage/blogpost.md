@@ -1,12 +1,14 @@
 #### Table of Contents
 
 - [What and why](#what-and-why)
+- [Background](#background)
+- [Storage Hardware 101](#storage-hardware-101)
 - [OLTP](#oltp)
   - [B+tree storage engines](#b-plus-se)
   - [LSM tree storage engines](#lsm-tree-se)
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
-- [The Lower Layers](#the-lower-layers)
+- [Storage APIs](#storage-apis)
 - [Conclusion](#conclusion)
 - [References](#references)
 
@@ -21,115 +23,26 @@ Tl;dr:
 - A storage engine is the component of a database that handles CRUD operations, interfacing with the underlying memory and storage systems. It usually relies on two primary types of indexes: B+trees and Log-Structured Merge-Trees (LSM-trees).
 - B+tree provides balanced read and write performance, while LSM-tree is optimized for high write throughput. In addition to the workload type, other factors, such as concurrency control, also have a significant impact on storage engine performance (eg see [this](tab:https://www.cs.cmu.edu/~pavlo/blog/2023/04/the-part-of-postgresql-we-hate-the-most.html))
 
-My goal here is to build on that summary and shallowly sketch the current storage-engine landscape, starting with some background.
+My goal here is to give you a context for that summary, build on top of it and shallowly sketch the current storage-engine landscape.
 
-For the first few decades, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained later). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
+## <a id="background" href="#table-of-contents">Background</a>
 
-As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stress the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize high sequential throughput efficiently.
+For the first few decades, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained next). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
 
-The following sections outline the storage-engine designs used for each workload type.
+As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stressed the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data (reading whole rows rather than just productId, sold count, location and time for the above query) than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize high sequential throughput efficiently.
 
-## <a id="oltp" href="#table-of-contents">OLTP</a>
+Stepping back, every storage engine navigates a fundamental trade-off between three costs:
 
-Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing specific products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
+- **Write amplification**: bytes written to storage per byte of user data. A value of 10× means 10 bytes hit disk for every 1 byte from the application.
+- **Read amplification**: bytes read from storage per byte of requested data. 
+- **Space amplification**: bytes stored in storage per byte of user data. 
 
-While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engine designs. For example:
+No design optimizes all three simultaneously. B+trees are read-optimized at the cost of higher write amplification. LSM-trees are write-optimized at the cost of higher read and space amplification. This trifecta explains why different workloads demand different engines.
 
-- **B+tree-based**: ideal for balanced read-write workloads.
-- **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
-- **LSH (Log-Structured Hash) table-based**: designed for extremely high-ingest workloads.
+## <a id="storage-hardware-101" href="#table-of-contents">Storage Hardware 101</a>
 
-#### B+tree-based
-
-B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for primary and secondary indexes.
-
-MySQL's InnoDB is a good example of such a storage engine. Its architecture [^4] is shown below. `File-Per-Table Tablespaces` is where table data and indexes are stored.
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 70%; height: auto;">
-</div>
-
-With file-per-table enabled, each `.ibd` file stores the table’s clustered index and all its secondary indexes [^5]. InnoDB clusters the table on the primary key: the leaf pages of the primary B+tree contain entire rows, ordered by that key. Secondary indexes store key values plus the primary-key columns as the logical row locator. The figure below shows a simplified primary index layout.
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
-</div>
-
-PostgreSQL takes a different approach. It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box roughly corresponds to its "storage engine".
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
-</div>
-
-Each Postgres table or index is stored in its own file, accompanied by two auxiliary forks for the free space map (FSM) and visibility map (VM). Tables larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables, all pages are interchangeable, so a row can be stored anywhere. Indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
-</div>
-
-By default, a primary key or unique constraint creates a B+tree index, so you typically end up with at least one file per table plus at least one more for its B+tree index. The figure below shows how the table and its B+tree primary index are related.
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
-</div>
-
-#### LSM-tree-based
-
-The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput, especially in internet-scale workloads. The trade-off is extra read latency (eg short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
-
-RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for an overview.
-
-#### LSH-table-based
-
-The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
-
-This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
-
-### Buffering Semantics Across OLTP Storage Engines
-
-A buffer manager’s importance differs sharply across these storage-engine families.
-
-In B+tree-based engines, the buffer pool is critical. All reads and all in-place writes go through it, making it the main sync point. Eviction and dirty-page scheduling materially affect performance because B+trees repeatedly touch a small, high-reuse working set (root, internal nodes, hot leaves).
-
-In LSM-tree-based engines, buffering isn't in the write path. Read performance still depends heavily on caching (block cache, filter/index block cache).
-
-In log-structured hash-table designs, the buffer manager’s role shrinks further. These systems use append-only segments and in-memory hash indexes and typically lean on the OS page cache rather than a database buffer pool. Caching still mitigates read amplification, but the engine’s own buffering layer is minimal.
-
-## <a id="olap" href="#table-of-contents">OLAP</a>
-
-The logical access pattern of an OLAP system typically involves scanning specific columns across millions of rows, rather than retrieving all columns for a few specific rows. Consequently, these systems use a column-oriented format, storing values from each column contiguously.
-
-In practice, however, storage engines rarely use a pure columnar approach. Because queries often filter by a specific range (eg time), engines use a hybrid layout. The table is horizontally partitioned into blocks of rows (often called row groups), and within those blocks, column values are stored separately. This is illustrated in the image below [^15].
-
-<div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
-</div>
-
-This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Within each row group, all columns store values in the same positional row order, so the engine can reconstruct rows by aligning the i-th value across columns. Because OLAP systems must frequently reassemble rows, this positional structure is essential. Parquet and ORC are the industry standards here, each with their own limitations [^16].
-
-One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [this](tab:https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf) for a list of potential compressions.
-
-#### The Metadata Hierarchy
-
-In modern OLAP architectures, raw data files are wrapped in additional layers of metadata (eg to support ACID transactions [^16]):
-
-- Table Formats: These files track which data files belong to a specific table, manage schemas, and store file-level statistics (min/max values). Apache Iceberg and Databricks’ Delta are the industry standards here.
-- Data Catalogs: This layer sits above table formats, defining which tables constitute a database and handling namespace operations like creating, renaming, or dropping tables. Snowflake’s Polaris and Databricks’ Unity Catalog are common examples.
-
-#### Handling Writes
-
-While columnar storage is excellent for reading, it is inefficient for writing individual rows, particularly in sorted tables. To address this, OLAP systems typically use a log-structured approach.
-
-Writes are first directed to a row-oriented, sorted, in-memory buffer (often called a memtable). When this buffer fills, the data is sorted, converted to the columnar format, and flushed to disk as a new immutable file. Because files are written in bulk and never modified in place, object storage is an ideal backend for this architecture.
-
-During a read, the query engine examines both the columnar data on disk and the recent writes in the memory buffer, merging the two results seamlessly so the user sees a consistent view of the data.
-
-## <a id="the-lower-layers" href="#table-of-contents">The Lower Layers</a>
-
-### Modern Storage Hardware
-
-Understanding storage hardware and navigating corresponding memory hierarchy is one of the most important factors affecting a database storage engine performance, hence it worthwhile to delve a bit deeper into it.
-
+The above trade-offs are heavily influenced by the the underlying storage hardware and its so-called memory hierarchy.
+  
 The figure below [^9] illustrates the different types of storage hardware currently in use, highlighting the trade-offs between performance, capacity, and price. One of the key principles of the memory hierarchy is that lower latency hardware is inevitably more expensive and limited in capacity.
 
 <div style="text-align: center;">
@@ -138,10 +51,10 @@ The figure below [^9] illustrates the different types of storage hardware curren
 
 Registers sit at the very top of the hierarchy, providing the CPU with the fastest possible access to data.
 
-CPU Caches follow immediately after. Most modern CPUs employ a multi-level cache hierarchy (L1, L2, and often L3).
+CPU caches follow immediately after. Most modern CPUs employ a multi-level cache hierarchy (L1, L2, and often L3).
 
-- L1 Cache: Located closest to the CPU core, L1 offers the highest speed. It is usually split into instruction-specific (I-cache) and data-specific (D-cache) units.
-- L2 & L3 Caches: L2 is physically separate and slightly slower, while L3 is generally shared across multiple cores.
+- L1: Located closest to the CPU core, L1 offers the highest speed. It is usually split into instruction-specific (I-cache) and data-specific (D-cache) units.
+- L2 & L3: L2 is physically separate and slightly slower, while L3 is generally shared across multiple cores.
 
 Cache memory is typically implemented using SRAM (Static Random Access Memory). SRAM requires multiple transistors to store a single bit, making it faster to read and write but also more expensive and less dense than DRAM (Dynamic Random Access Memory).
 
@@ -173,7 +86,109 @@ For performance comparison, consider the following rough metrics for random and 
 
 Emerging persistent memory technologies bridge the gap between volatile RAM and non-volatile storage. They combine the durability of storage with the byte-addressable access speeds of traditional RAM [^12].
 
-### Modern Storage APIs
+These hardware characteristics directly shaped storage engine design:
+- B+trees minimize random I/O, critical when HDDs dominated
+- LSM-trees convert random writes to sequential, exploiting SSD strengths
+- Columnar layouts maximize sequential read throughput for analytics
+
+With this foundation, let's examine how OLTP and OLAP engines are designed.
+
+## <a id="oltp" href="#table-of-contents">OLTP</a>
+
+Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing specific products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
+
+While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engine designs [FIXME: is storage engine design right here? maybe be more specific?]. For example:
+
+- **B+tree-based**: ideal for balanced read-write workloads.
+- **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
+- **LSH (Log-Structured Hash) table-based**: designed for extremely high-ingest workloads.
+
+#### B+tree-based
+
+B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. [FIXME: abrupt and reads unconnected] The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for primary and secondary indexes.
+
+MySQL's InnoDB is a good example of such a storage engine. Its architecture [^4] is shown below. `File-Per-Table Tablespaces` is where table data and indexes are stored.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 70%; height: auto;">
+</div>
+
+With file-per-table enabled, each `.ibd` file stores the table’s clustered index and all its secondary indexes [^5]. InnoDB clusters the table on the primary key: the leaf pages of the primary B+tree contain entire rows, ordered by that key. [FIXME: technically loose I think – they store keys similarly but values are different?] Secondary indexes store key values plus the primary-key columns as the logical row locator. The figure below shows a simplified primary index layout.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
+</div>
+
+PostgreSQL takes a different approach. [FIXME: again rather abrupt; maybe say something like postgres uses the same data structure but stores the actual data in heap files?] It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box roughly corresponds to its "storage engine".
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
+</div>
+
+Each Postgres table or index is stored in its own file, accompanied by two auxiliary [FIXME: simpler word in order?] forks for the free space map (FSM) and visibility map (VM). Tables larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables, all pages are interchangeable, so a row can be stored anywhere. Indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+By default, a primary key or unique constraint creates a B+tree index, so you typically end up with at least one file per table plus at least one more for its B+tree index. The figure below shows how the table and its B+tree primary index are related.
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
+</div>
+
+#### LSM-tree-based
+
+The Log-Structured Merge (LSM) tree was introduced in academic literature in 1996. LSM storage engines buffer writes in memory, periodically flush sorted runs to disk, and merge those runs in the background. This trades the strict in-place updates and globally ordered layout of B+trees for batched sequential I/O, yielding much higher write throughput. The trade-off is extra read latency (eg short-range lookups may hit multiple levels) and higher space/memory amplification. [^7]
+
+RocksDB is one of the state-of-the-art LSM-tree based storage engines. See its [wiki](tab:https://github.com/facebook/rocksdb/wiki/RocksDB-Overview) for details.
+
+#### LSH-table-based
+
+The Log-Structured Hash (LSH) tables push the LSM idea to its extreme by dropping order maintenance entirely. Instead, they rely on an in-memory index, eg hash table, for efficient key-value lookups. New records are buffered in memory and then flushed to disk as new segments in a single, ever-growing log.
+
+This design makes writes almost entirely sequential, supporting extremely high ingest rates. The main downsides are inefficient range scans, which must either scan multiple log segments or resort to a full table scan, and higher memory amplification compared to LSM-trees, as the in-memory index must hold all keys [^7]. Faster and its follow ups are good examples of such a system [^8].
+
+### Buffering Semantics Across OLTP Storage Engines
+
+A buffer manager’s importance differs sharply across these storage-engine families.
+
+In B+tree-based engines, the buffer pool is critical. All reads and all in-place writes go through it, making it the main sync point. Eviction and dirty-page scheduling materially affect performance because B+trees repeatedly touch a small, high-reuse working set (root, internal nodes, hot leaves).
+
+In LSM-tree-based engines, buffering isn't in the write path. Read performance still depends heavily on caching (block cache, filter/index block cache).
+
+In LSH-table-based designs, the buffer manager’s role shrinks further. These systems use append-only segments and in-memory hash indexes and typically lean on the OS page cache rather than a database buffer pool. Caching still mitigates read amplification, but the engine’s own buffering layer is minimal.
+
+## <a id="olap" href="#table-of-contents">OLAP</a>
+
+The logical access pattern of an OLAP system typically involves scanning specific columns across millions of rows, rather than retrieving all columns for a few specific rows. Consequently, these systems use a column-oriented format, storing values from each column contiguously.
+
+In practice, however, storage engines rarely use a pure columnar approach. Because queries often filter by a specific range (eg time), engines use a hybrid layout. The table is horizontally partitioned into blocks of rows (often called row groups), and within those blocks, column values are stored separately. This is illustrated in the image below [^15].
+
+<div style="text-align: center;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/data_layout.jpg?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
+</div>
+
+This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Within each row group, all columns store values in the same positional row order, so the engine can reconstruct rows by aligning the i-th value across columns. Because OLAP systems must frequently reassemble rows, this positional structure is essential. Parquet and ORC are the industry standards here, each with their own limitations [^16].
+
+One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [this](tab:https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf) for a list of potential compressions.
+
+#### The Metadata Hierarchy
+
+In modern OLAP architectures, raw data files are wrapped in additional layers of metadata (eg to support ACID transactions [^16]):
+
+- Table Formats: These files track which data files belong to a specific table, manage schemas, and store file-level statistics (min/max values). Apache Iceberg and Databricks’ Delta are the industry standards here.
+- Data Catalogs: This layer sits above table formats, defining which tables constitute a database and handling namespace operations like creating, renaming, or dropping tables. Snowflake’s Polaris and Databricks’ Unity Catalog are common examples.
+
+#### Handling Writes
+
+While columnar storage is excellent for reading, it is inefficient for writing individual rows, particularly in sorted tables. To address this, OLAP systems typically use a log-structured approach.
+
+Writes are first directed to a row-oriented, sorted, in-memory buffer (often called a memtable). When this buffer fills, the data is sorted, converted to the columnar format, and flushed to disk as a new immutable file. Because files are written in bulk and never modified in place, object storage is an ideal backend for this architecture.
+
+During a read, the query engine examines both the columnar data on disk and the recent writes in the memory buffer, merging the two results seamlessly so the user sees a consistent view of the data.
+
+## <a id="modern-storage-apis" href="#table-of-contents">Modern Storage APIs</a>
 
 Modern storage APIs are an important area today because their cost is one of the performance bottlenecks. For example, when storage took say 10,000 µs (HDD), a 5 µs software delay was invisible (0.05%). Now that storage takes 10 µs (SSD), that same fixed 5 µs software delay is a massive bottleneck (33%).
 
