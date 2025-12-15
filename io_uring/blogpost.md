@@ -4,7 +4,7 @@
 
 Mental model[^3]
 <div style="text-align: center;">
-<img src="https://github.com/adamsoliev/bearblog/blob/main/io_uring/images/io_uring.png?raw=true" alt="first example" height="600" style="border: 1px solid black;">
+<img src="https://github.com/adamsoliev/bearblog/blob/main/io_uring/images/io_uring.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
 submission consists of an array of indexes and actual queue; the reason for this is I/O ops may complete in an order different from submission order.

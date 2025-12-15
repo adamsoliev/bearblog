@@ -2,13 +2,13 @@
 
 - [What and why](#what-and-why)
 - [Background](#background)
-- [Storage Hardware 101](#storage-hardware-101)
+- [Storage Hardware](#storage-hardware)
 - [OLTP](#oltp)
   - [B+tree storage engines](#b-plus-se)
   - [LSM tree storage engines](#lsm-tree-se)
   - [LSH table storage engines](#lsh-table-se)
 - [OLAP](#olap)
-- [Storage APIs](#storage-apis)
+- [Modern Storage APIs](#modern-storage-apis)
 - [Conclusion](#conclusion)
 - [References](#references)
 
@@ -27,9 +27,9 @@ My goal here is to give you a context for that summary, build on top of it and s
 
 ## <a id="background" href="#table-of-contents">Background</a>
 
-For the first few decades, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained next). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
+From the 1970s through the 1980s, a major use case for databases was recording interactive business transactions (eg airline bookings). These use cases, now classified as OLTP, consist of many short reads and/or writes that touch only a few records (or rows) at a time. On the hardware of the time, performance was dominated by the mechanical latency of hard disks (explained next). To cope with this, databases were built to minimize random I/O, using B+tree indexes as the standard on-disk data structure and a buffer manager to cache frequently accessed disk pages in memory.
 
-As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stressed the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading far more data (reading whole rows rather than just productId, sold count, location and time for the above query) than the query required. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and utilize high sequential throughput efficiently.
+As data volumes grew through the 1990s and 2000s, users wanted systems that could answer analytical questions (eg what are the top 3 best-selling products in North America in Q2?). These workloads, now called OLAP, stressed the system in a different way: instead of random-seek latency, the main bottleneck was wasted I/O bandwidth caused by reading entire rows when only a few columns (eg productId, sold count, location, time) were needed. This drove the adoption of columnar storage layouts, which allow engines to read only the referenced columns and exploit high sequential throughput.
 
 Stepping back, every storage engine navigates a fundamental trade-off between three costs:
 
@@ -37,9 +37,9 @@ Stepping back, every storage engine navigates a fundamental trade-off between th
 - **Read amplification**: bytes read from storage per byte of requested data. 
 - **Space amplification**: bytes stored in storage per byte of user data. 
 
-No design optimizes all three simultaneously. B+trees are read-optimized at the cost of higher write amplification. LSM-trees are write-optimized at the cost of higher read and space amplification. This trifecta explains why different workloads demand different engines.
+No design optimizes all three. B+trees are read-optimized at the cost of higher write amplification. LSM-trees are write-optimized at the cost of higher read and space amplification. Understanding this trifecta requires understanding the underlying storage hardware (next section), then examining how OLTP and OLAP engines navigate these trade-offs.
 
-## <a id="storage-hardware-101" href="#table-of-contents">Storage Hardware 101</a>
+## <a id="storage-hardware" href="#table-of-contents">Storage Hardware</a>
 
 The above trade-offs are heavily influenced by the the underlying storage hardware and its so-called memory hierarchy.
   
@@ -72,14 +72,13 @@ The mechanical nature of HDDs imposes physical latency limits. This is why Solid
 
 - Service Life: NAND flash cells withstand a finite number of program/erase cycles before failing. The internal Garbage Collection (GC) process required to manage blocks further contributes to this wear.
 
-For performance comparison, consider the following rough metrics for random and sequential access:
+Performance metrics for random and sequential access:[^perf_note]
 
 - HDD:
-  - Random Reads (4KB): ~100 IOPS (approx. 10ms latency).
-  - Sequential Reads: ~40k IOPS, translating into ~150 MB/s throughput.
+  - Random Reads (4KB): ~100 IOPS (~10ms latency).
+  - Sequential Reads: ~40k IOPS (~150 MB/s throughput).
 
 - SSD (QD-32):
-  - _Note that performance is typically measured at Queue Depth 32 (QD-32)_.
   - Random Reads (4KB): ~100k IOPS (SATA) to ~1M IOPS (NVMe PCIe 5).
   - Random Writes (4KB): ~80k IOPS (SATA) to ~800k IOPS (NVMe PCIe 5).
   - Sequential Reads: ~125k IOPS (SATA) to ~3.5M IOPS (NVMe PCIe 5). In throughput terms, ~500 MB/s (SATA) to ~14 GB/s (NVMe PCIe 5). Note that throughput is often bottlenecked by the interconnect (bus).
@@ -87,17 +86,15 @@ For performance comparison, consider the following rough metrics for random and 
 Emerging persistent memory technologies bridge the gap between volatile RAM and non-volatile storage. They combine the durability of storage with the byte-addressable access speeds of traditional RAM [^12].
 
 These hardware characteristics directly shaped storage engine design:
-- B+trees minimize random I/O, critical when HDDs dominated
-- LSM-trees convert random writes to sequential, exploiting SSD strengths
-- Columnar layouts maximize sequential read throughput for analytics
-
-With this foundation, let's examine how OLTP and OLAP engines are designed.
+- B+trees minimize random I/O, critical when HDDs dominated.
+- LSM-trees convert random writes to sequential, exploiting SSD strengths.
+- Columnar layouts maximize sequential read throughput for analytics.
 
 ## <a id="oltp" href="#table-of-contents">OLTP</a>
 
-Shopping on an e-commerce site is a good example of a balanced read-write OLTP workload. This activity involves a mix of reading data (browsing specific products) and writing data (placing an order). In contrast, application logging and analytics use cases are much more write-heavy, requiring significantly higher write throughput. Taking this idea to an extreme, consider the massive, high-speed data ingestion from edge devices or IoT sensors, which demands extremely high write throughput.
+Shopping on an e-commerce site is a balanced read-write OLTP workload, involving browsing specific products (reads) and placing orders (writes). Application logging is write-heavy, requiring higher write throughput. IoT sensor ingestion is write-extreme, demanding the highest write throughput.
 
-While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engine designs [FIXME: is storage engine design right here? maybe be more specific?]. For example:
+While all of these are OLTP use cases, their vastly different write requirements are best served by different storage engine designs. For example:
 
 - **B+tree-based**: ideal for balanced read-write workloads.
 - **LSM (Log-Structured Merge) tree-based**: optimized for write-heavy workloads.
@@ -105,27 +102,27 @@ While all of these are OLTP use cases, their vastly different write requirements
 
 #### B+tree-based
 
-B+tree-based storage engines maintain a global sorted order via a self-balancing tree and typically update data in place. [FIXME: abrupt and reads unconnected] The B-tree data structure was introduced in the early 1970s [^1] [^2] [^3], so most relational databases rely on it for primary and secondary indexes.
+Introduced in the early 1970s[^1] [^2] [^3], the B+tree maintains global sorted order via a self-balancing tree and in-place updates. It serves as the foundational data structure for primary and secondary indexes in most relational databases.
 
-MySQL's InnoDB is a good example of such a storage engine. Its architecture [^4] is shown below. `File-Per-Table Tablespaces` is where table data and indexes are stored.
+MySQL's InnoDB is a good example of a B+tree-based storage engine. Its architecture [^4] is shown below. `File-Per-Table Tablespaces` is where table data and indexes are stored.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/innodb_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 70%; height: auto;">
 </div>
 
-With file-per-table enabled, each `.ibd` file stores the table’s clustered index and all its secondary indexes [^5]. InnoDB clusters the table on the primary key: the leaf pages of the primary B+tree contain entire rows, ordered by that key. [FIXME: technically loose I think – they store keys similarly but values are different?] Secondary indexes store key values plus the primary-key columns as the logical row locator. The figure below shows a simplified primary index layout.
+With file-per-table enabled, each `.ibd` file stores the table's clustered index and all its secondary indexes [^5]. InnoDB clusters the table on the primary key: the leaf pages of the primary B+tree contain entire rows, ordered by that key. Secondary indexes store indexed key values plus primary-key columns as the row locator. The figure below shows a simplified primary index layout.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-PostgreSQL takes a different approach. [FIXME: again rather abrupt; maybe say something like postgres uses the same data structure but stores the actual data in heap files?] It uses a heap-storage engine: table data goes into heap files and indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box roughly corresponds to its "storage engine".
+PostgreSQL uses the same B+tree structure for indexes but stores table data separately in heap files. This heap-storage approach keeps table data in heap files while indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box marks its storage engine.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
 </div>
 
-Each Postgres table or index is stored in its own file, accompanied by two auxiliary [FIXME: simpler word in order?] forks for the free space map (FSM) and visibility map (VM). Tables larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables, all pages are interchangeable, so a row can be stored anywhere. Indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
+Each Postgres table or index is stored in its own file, accompanied by two additional forks for the free space map (FSM) and visibility map (VM). Tables larger than 1GB are split into 1GB segments (name.1, name.2, etc.) to accommodate filesystem limits. The main fork is divided into 8KB pages; for heap tables, all pages are interchangeable, so a row can be stored anywhere. Indexes dedicate the first block to metadata and maintain different page types depending on the access method. The generic page layout is shown below:
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/pg_page_layout.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
@@ -202,7 +199,8 @@ POSIX defines synchronous and asynchronous I/O. With synchronous I/O, a `pread()
 
 In `libaio`, asynchrony is handled in the kernel. You call `io_submit()` to queue one or more requests; the call returns immediately while the kernel executes the I/O. You later call `io_getevents()` to collect completions. `libaio` is almost always used with `O_DIRECT` to avoid the extra copy through the page cache. In this case, the effective cost is two system calls per I/O request: one to submit and one to get completions.
 
-`io_uring` introduces submission and completion ring buffers shared between the application and the kernel. This removes the metadata-copy overhead that POSIX and libaio pay by default. The main modes of operation are shown below. [^14].
+`io_uring` is a new Linux I/O interface designed to be easy and efficient to use. It introduces a submission and completion queue pair that
+an application can use to communicate with the kernel for doing I/O. This means no metadata-copy overhead that POSIX and libaio pay by default. Its main modes of operation are shown below. [^14].
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/io_uring_modes.png?raw=true" alt="first example" style="border: 0px solid black; width: 60%; height: auto;">
@@ -212,9 +210,9 @@ In `libaio`, asynchrony is handled in the kernel. You call `io_submit()` to queu
 - (b) Same as (a), but the application tells the kernel to poll the hardware instead of relying on interrupts when communicating with the SSD driver.
 - $(c$) io_uring can eliminate both syscalls by creating a dedicated kernel thread per io_uring context. That thread polls the SQ, and the application polls the CQ. The tradeoff is the extra kernel thread.
 
-As with `libaio`, `io_uring` is almost always used with `O_DIRECT`.
+`io_uring` supports buffered (involves OS page cache), unbuffered (`O_DIRECT`) and passthrough I/O (bypassing the generic storage stack). 
 
-SPDK bypasses the kernel entirely by mapping the NVMe driver’s queues into user space. The application issues commands directly to the device driver, avoiding interrupts and system calls altogether.
+`SPDK` bypasses the kernel entirely by mapping NVMe queues into user space, allowing applications to issue commands directly to the device. While this approach maximizes performance, it complicates integration with storage engines that rely on other kernel services. Furthermore, `SPDK` requires exclusive control of the physical device, rendering it unfeasible for most production environments.
 
 ## <a id="conclusion" href="#conclusion">Conclusion</a>
 
@@ -255,3 +253,5 @@ Like everything in systems, storage engines are a set of trade-offs. I have cove
 [^16]: Zeng, Xinyu, et al. "An empirical evaluation of columnar storage formats."
 
 [^17]: Steinert, Till, et al. "Cloudspecs: Cloud Hardware Evolution Through the Looking Glass."
+
+[^perf_note]: SSD performance is typically measured at Queue Depth 32 (QD-32).
