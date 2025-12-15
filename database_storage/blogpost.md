@@ -223,6 +223,7 @@ A few observations:
 - Hardware: NVMe SSDs have shifted the bottleneck from mechanical latency to software overhead.
 - Storage APIs: `io_uring` is emerging as the standard for high-performance async I/O, eliminating the syscall overhead that POSIX and `libaio` impose.
 - Data structures: Increasingly write-heavy workloads (application logging, IoT ingestion) have pushed the field from B+trees toward LSM-trees and LSH-tables. That said, existing engines also invest in optimizing for the opposite direction—LSM-trees add Bloom filters and tiered compaction for better reads; B+tree variants adopt log-structured techniques for better writes.
+- OLAP: The field has standardized on layered abstractions—columnar formats (Parquet, ORC), table formats (Iceberg, Delta), and catalogs—each solving a distinct problem. Write handling borrows log-structured techniques from OLTP.
 
 Public cloud infrastructure [^17] may be another force reshaping this landscape, though that's beyond the scope of this post.
 
