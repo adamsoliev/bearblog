@@ -216,7 +216,15 @@ an application can use to communicate with the kernel for doing I/O. This means 
 
 ## <a id="conclusion" href="#conclusion">Conclusion</a>
 
-Like everything in systems, storage engines are a set of trade-offs. I have covered some factors affecting these trade-offs while omitting others (eg the effect of public cloud hardware[^17]). Ultimately, a storage engine is designed for a particular workload, targeting a specific balance of the write, read, and space amplification trifecta.
+This was mostly a summary post to clarify my own understanding of the current storage engine landscape.
+
+A few observations:
+
+- Hardware: NVMe SSDs have shifted the bottleneck from mechanical latency to software overhead.
+- Storage APIs: `io_uring` is emerging as the standard for high-performance async I/O, eliminating the syscall overhead that POSIX and `libaio` impose.
+- Data structures: Increasingly write-heavy workloads (application logging, IoT ingestion) have pushed the field from B+trees toward LSM-trees and LSH-tables. That said, existing engines also invest in optimizing for the opposite direction—LSM-trees add Bloom filters and tiered compaction for better reads; B+tree variants adopt log-structured techniques for better writes.
+
+Public cloud infrastructure [^17] may be another force reshaping this landscape, though that's beyond the scope of this post.
 
 ## <a id="references" href="#table-of-contents">References</a>
 
