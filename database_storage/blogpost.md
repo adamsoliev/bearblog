@@ -116,7 +116,7 @@ With file-per-table enabled, each `.ibd` file stores the table's clustered index
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/mysql_btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
 
-PostgreSQL uses the same B+tree structure for indexes but stores table data separately in heap files. This heap-storage approach keeps table data in heap files while indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box marks its storage engine.
+PostgreSQL uses the same B+tree structure for indexes but stores table data separately in heap files (unordered pages where rows can be inserted anywhere there is free space). Indexes live in their own files. PostgreSQL's architecture[^6] is shown below; the dashed red box marks its storage engine.
 
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/postgres_se.png?raw=true" alt="first example" style="border: 0px solid black; width: 80%; height: auto;">
@@ -133,6 +133,8 @@ By default, a primary key or unique constraint creates a B+tree index, so you ty
 <div style="text-align: center;">
 <img src="https://github.com/adamsoliev/bearblog/blob/main/database_storage/images/btree.png?raw=true" alt="first example" style="border: 0px solid black; width: 100%; height: auto;">
 </div>
+
+Unlike InnoDB's clustered index, where leaf pages contain entire rows, PostgreSQL's B+tree leaf pages store (key, TID) pairs. The TID (tuple identifier) is a pointer to the row's physical location in the heap. Secondary indexes work the same way where they store TIDs pointing directly to heap tuples, rather than going through the primary key as in MySQL. This means every index lookup, whether primary or secondary, requires a separate heap fetch to retrieve the actual row data. This design simplifies index management but contributes to the MVCC-related bloat discussed in the CMU article linked earlier.
 
 #### LSM-tree-based
 
@@ -222,7 +224,7 @@ A few observations:
 
 - Hardware: NVMe SSDs have shifted the bottleneck from mechanical latency to software overhead.
 - Storage APIs: `io_uring` is emerging as the standard for high-performance async I/O, eliminating the syscall overhead that POSIX and `libaio` impose.
-- Data structures: Increasingly write-heavy workloads (application logging, IoT ingestion) have pushed the field from B+trees toward LSM-trees and LSH-tables. That said, existing engines also invest in optimizing for the opposite direction—LSM-trees add Bloom filters and tiered compaction for better reads; B+tree variants adopt log-structured techniques for better writes.
+- Data structures: Increasingly write-heavy workloads (application logging, IoT ingestion) have pushed the field from B+trees toward LSM-trees and LSH-tables. That said, existing engines also invest in optimizing for the opposite direction—LSM-trees add Bloom filters, fence pointers and compaction optimizations for better reads; B+tree variants adopt log-structured techniques for better writes.
 - OLAP: The field has standardized on layered abstractions—columnar formats (Parquet, ORC), table formats (Iceberg, Delta), and catalogs—each solving a distinct problem. Write handling borrows log-structured techniques from OLTP.
 
 Public cloud infrastructure [^17] may be another force reshaping this landscape, though that's beyond the scope of this post.
