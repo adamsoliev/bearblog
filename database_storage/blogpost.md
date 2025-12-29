@@ -88,7 +88,7 @@ Emerging persistent memory technologies bridge the gap between volatile RAM and 
 These hardware characteristics directly shaped storage engine design:
 - B+trees minimize random I/O, critical when HDDs dominated.
 - LSM-trees convert random writes to sequential, exploiting SSD strengths.
-- Columnar layouts maximize sequential read throughput for analytics.
+- Columnar layouts reduce I/O by reading only the columns a query references..
 
 ## <a id="oltp" href="#table-of-contents">OLTP</a>
 
