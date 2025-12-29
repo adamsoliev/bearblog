@@ -170,7 +170,7 @@ In practice, however, storage engines rarely use a pure columnar approach. Becau
 
 This hybrid layout allows the engine to be surgical, fetching only the specific row groups required for a query. Within each row group, all columns store values in the same positional row order, so the engine can reconstruct rows by aligning the i-th value across columns. Because OLAP systems must frequently reassemble rows, this positional structure is essential. 
 
-Most OLAP engines use this hybrid approach as a foundation, optimizing it for their query engines while supporting Parquet and ORC for cross-platform data sharing [^16].
+Most OLAP engines use this hybrid layout idea as a foundation, customizing it for their query engines while supporting Parquet and ORC for cross-platform data sharing [^16].
 
 One of the major advantages of this layout is compression. Since data within a column is uniform (eg a column of integers), it compresses significantly better than row-oriented data. See [this](tab:https://15445.courses.cs.cmu.edu/fall2025/notes/06-storage3.pdf) for a list of potential compressions.
 
